@@ -23,6 +23,52 @@ def _titulo(ruta: Path) -> str:
     return f"Temporada {m.group(1)} · semana {int(m.group(2))}" if m else ruta.stem
 
 
+FUENTES = [  # (tabla en la base de datos, nombre que se muestra, de donde viene)
+    ("games", "Calendario, resultados y líneas", "nflverse"),
+    ("team_games", "Jugadas (EPA por equipo)", "nflverse"),
+    ("player_weeks", "Estadísticas de jugadores", "nflverse"),
+    ("injuries", "Lesiones (reporte oficial)", "nflverse"),
+    ("lesiones_espn", "Lesiones y notas", "ESPN"),
+    ("depth", "Depth chart", "nflverse"),
+    ("ourlads_depth", "Depth chart y titulares", "Ourlads"),
+    ("rbsdm_team_tiers", "EPA, éxito y tendencias por equipo", "rbsdm"),
+    ("snaps", "Jugadas por jugador (snaps)", "nflverse"),
+    ("lineas_kalshi", "Líneas de props", "Kalshi"),
+]
+
+
+def estado_datos() -> str:
+    """Tabla con la ultima descarga de cada fuente (leida de la base de datos), para ver de un vistazo si algo no se actualizo."""
+    import sqlite3
+    try:
+        con = sqlite3.connect(AQUI / "data" / "nfl.db")
+        filas = con.execute("SELECT tabla, MAX(descargado), SUM(filas) FROM (SELECT tabla, descargado, filas FROM descargas "
+                            "WHERE descargado = (SELECT MAX(d2.descargado) FROM descargas d2 WHERE d2.tabla = descargas.tabla)) GROUP BY tabla").fetchall()
+        con.close()
+    except Exception:
+        return ""
+    ult = {t: (d, n) for t, d, n in filas}
+    ahora = datetime.now()
+    out = []
+    for tabla, nombre, fuente in FUENTES:
+        if tabla not in ult:
+            out.append(f"<tr><td>{fuente}</td><td>{nombre}</td><td colspan='2' style='color:#b3261e'>Sin datos en esta corrida</td></tr>")
+            continue
+        d, n = ult[tabla]
+        try:
+            horas = (ahora - datetime.fromisoformat(str(d))).total_seconds() / 3600
+        except Exception:
+            horas = 0
+        color = "#0a7d3c" if horas <= 30 else "#b3261e"
+        edad = "hace unos minutos" if horas < 1 else (f"hace {horas:.0f} h" if horas < 48 else f"hace {horas / 24:.0f} días")
+        out.append(f"<tr><td>{fuente}</td><td>{nombre}</td><td>{int(n or 0):,} filas</td><td style='color:{color}'>{d} · {edad}</td></tr>")
+    return ('<details style="max-width:900px;margin:1.5em auto;font:14px system-ui" open><summary><b>Estado de los datos de esta página</b></summary>'
+            '<p style="margin:.5em 0">Esta página es una foto del momento en que corrió el modelo: no se actualiza sola al abrirla, '
+            'solo cuando corre otra vez. Esto es lo último que descargó cada fuente (hora del servidor que lo corrió, UTC en la nube).</p>'
+            '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Fuente</th><th align="left">Qué es</th>'
+            '<th align="left">Filas</th><th align="left">Última descarga</th></tr></thead><tbody>' + "".join(out) + "</tbody></table></div></details>")
+
+
 def publicar(ruta: Path | None = None) -> Path:
     if ruta is None:                                   # el reporte mas reciente de la carpeta reportes/
         cand = sorted((AQUI / "reportes").glob("reporte_*.html"), key=lambda p: p.stat().st_mtime)
@@ -37,7 +83,8 @@ def publicar(ruta: Path | None = None) -> Path:
     texto = ruta.read_text(encoding="utf-8")
     # enlace discreto al archivo de reportes anteriores, justo antes del cierre de la pagina
     enlace = ('<p style="text-align:center;font:14px system-ui;margin:2em 0"><a href="archivo.html">'
-              'Ver reportes anteriores</a> · generado el ' + datetime.now().strftime("%d/%m/%Y %H:%M") + ' (UTC en la nube)</p>')
+              'Ver reportes anteriores</a> · generado el ' + datetime.now().strftime("%d/%m/%Y %H:%M") + ' (hora del servidor)</p>')
+    enlace = estado_datos() + enlace
     texto = texto.replace("</body>", enlace + "</body>") if "</body>" in texto else texto + enlace
     (DOCS / "index.html").write_text(texto, encoding="utf-8")
 
