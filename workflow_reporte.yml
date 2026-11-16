@@ -1,0 +1,70 @@
+# Corre el modelo en la nube y publica el reporte como pagina web (tambien se ve en el celular).
+# Se ejecuta solo martes, jueves, sabado y domingo, o a mano: pestaña Actions > "Reporte NFL" > Run workflow.
+name: Reporte NFL
+
+on:
+  schedule:
+    - cron: "17 15 * * 2,4,6,0"     # 15:17 UTC (9:17 am hora de CDMX)
+  workflow_dispatch:
+
+permissions:
+  contents: write      # guardar la base de datos en la rama "datos"
+  pages: write         # publicar la pagina
+  id-token: write
+
+concurrency:
+  group: reporte-nfl
+  cancel-in-progress: false
+
+jobs:
+  reporte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      NFL_SIN_NAVEGADOR: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Traer la base de datos y el historial (rama datos)
+        run: |
+          if git ls-remote --exit-code --heads origin datos >/dev/null 2>&1; then
+            git fetch --depth=1 origin datos
+            git archive FETCH_HEAD | tar -x -C .
+            echo "Base de datos restaurada."
+          else
+            echo "Primera vez: no hay base de datos guardada; se descargara todo de nflverse (tarda unos minutos)."
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar paquetes
+        run: pip install -r requirements.txt
+
+      - name: Correr el modelo
+        run: python semana_nfl.py
+
+      - name: Guardar la base de datos para la siguiente corrida
+        run: |
+          rm -rf /tmp/datos && mkdir -p /tmp/datos
+          cp -r data /tmp/datos/data
+          rm -f /tmp/datos/data/_pbp_*.csv.gz
+          [ -d historial ] && cp -r historial /tmp/datos/historial || true
+          cd /tmp/datos
+          git init -q -b datos
+          git add -A
+          git -c user.name="reporte-nfl" -c user.email="reporte-nfl@users.noreply.github.com" commit -q -m "datos $(date -u +%F)"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" datos
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4

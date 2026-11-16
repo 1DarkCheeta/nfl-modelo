@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+data/_pbp_*.csv.gz
+data/nfl.db
+data/
+outputs/
+reportes/
+historial/
+docs/
+*.zip
+
+fuentes_web/
+_version_alterna/
+.idea/
