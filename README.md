@@ -202,6 +202,7 @@ Vistas listas para consultar: `v_jugador_temporada` (targets, recepciones, % atr
 | `matchups.py` / `matchups_data.py` | Presión, blitz, yardas permitidas y rankings ataque vs defensa |
 | `reporte_extra.py` | Bloques HTML de matchups, props y calculadora |
 | `web.py` | Diseño de la página: pestañas, resumen por partido, selector de partido, texto plegable, frescura |
+| `jugadores.py` | Explorador de jugadores (los 32 equipos): Hit Rate semana a semana contra una línea editable |
 | `movimientos.py` | Traspasos y fichajes: quién se movió a dónde, y que el modelo use el equipo vigente de cada jugador |
 | `qb.py` | Mariscales: quién abre frente al titular habitual, alertas y medición histórica |
 | `backtest.py` | Validación walk-forward 2015-2025 → `outputs/backtest_report.md` |
@@ -329,6 +330,18 @@ Archivo `movimientos.py`. Las estadísticas por jugador traen el equipo de su **
 - `detectar` lista a los jugadores de ataque (QB, RB, WR, TE) que cambiaron de equipo esta temporada, desde qué semana juegan con el nuevo equipo (o «todavía no juega»), su rol actual y su uso antes/después. Se guarda una foto diaria en la tabla `movimientos_jugadores` de la base de datos.
 - `TRASPASOS_2026` es la lista fija de los traspasos del periodo (cierre: martes 10-nov-2026, 4 p. m. ET; fuentes ESPN, DAZN y SI) y se cruza con los datos para avisar si el modelo ya tiene a cada jugador con su equipo nuevo. Los de línea ofensiva/defensiva se muestran pero no entran al modelo de jugadores. **Para el próximo periodo de traspasos hay que actualizar esa lista a mano** (lo detectado con los datos sí es automático).
 - En la página: sección **«Movimientos de jugadores»** en la pestaña «Esta semana», insignia «🔁 fichajes» en los partidos afectados, y los avisos de Mariscales ahora dicen «traspasado a …» o «llegó por traspaso desde …».
+
+## Explorador de jugadores (los 32 equipos)
+
+Archivo `jugadores.py` (solo arma datos y HTML; **no cambia ningún cálculo del modelo**). Es la versión estática del dashboard «NFL Props Tracker» (Streamlit) integrada a la página: pestaña **«Equipos y jugadores» → «Jugadores»**.
+
+- Elige temporada, equipo, posición (QB, RB, WR, TE), jugador (titular, banca o lesionado, con su estado) y estadística; filtra por **Local / Visitante / Ambos** y por **Over / Under**.
+- Muestra **Hit Rate** y récord (cubrió / no cubrió), promedio real vs línea, Local vs Visitante, gráfica de barras semana a semana con la línea encima, fichas «¿Cubrió la línea?», detalle semana a semana, bloque «Acarreos por partido» para los RB y los **puntos totales del partido** del equipo (Over/Under, local/visitante).
+- **Línea editable**: parte de la línea «normal» del modelo (o del promedio de la temporada si el jugador no tiene proyección); botones para usar la del modelo, el promedio o la de Kalshi. Si el jugador tiene proyección, la tarjeta «Próximo partido» da su valor esperado, rango típico y el % de superar *tu* línea.
+- Reglas idénticas al dashboard: Over cubre si real > línea; Under si real < línea; push (igual) no cuenta; «No jugó» y «Sin línea» no cuentan; **Hit Rate = cubrió ÷ (cubrió + no cubrió)**; Local/Visitante sale del calendario.
+- Estadísticas: yardas de pase, TDs de pase, yardas por tierra, acarreos, recepciones, yardas por recepción, TD (por tierra o recepción), y además pases completos, intercepciones y objetivos (targets). Temporada actual y la anterior, solo temporada regular.
+- Los datos van embebidos en la página (sin servidor y sin descargas nuevas: salen de la misma base de datos). El jugador traspasado aparece con su equipo vigente (ver «Movimientos»). Se probó contra la lógica original del dashboard (`metrics.py`) en 400 combinaciones al azar: 0 diferencias.
+- No se usa The Odds API: las líneas «reales» de casas por semana no existen gratis en forma histórica; el Hit Rate se mide contra la línea que escribas o la normal del modelo (ver «Líneas automáticas de Kalshi» para las actuales).
 
 ## Combinadas del mismo partido
 

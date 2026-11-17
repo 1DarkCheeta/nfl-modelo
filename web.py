@@ -231,9 +231,9 @@ def armar(c: dict) -> str:
           'el over/under de puntos con tus propias líneas y las combinadas, los props y touchdowns de jugadores y el matchup.</p>'
           f'{como}{_selector(js_)}<div class="gpanels" id="pgrid">{paneles}</div>{pp.get("datos", "")}')
     sub3 = _subnav([("porequipo", "Equipo por equipo", bool(c.get("sec_eq"))), ("elo", "Elo", bool(c.get("sec_elo"))),
-                    ("td", "Touchdowns", bool(c.get("sec_td"))), ("casas", "Kalshi", bool(c.get("sec_casas"))), ("props", "Props destacados", bool(c.get("sec_top")))])
-    t3 = sub3 + c.get("sec_eq", "") + c.get("sec_elo", "") + c.get("sec_td", "") + c.get("sec_casas", "") + c.get("sec_top", "")
-    if not (c.get("sec_eq") or c.get("sec_elo") or c.get("sec_td") or c.get("sec_casas") or c.get("sec_top")):
+                    ("explorador", "Jugadores", bool(c.get("sec_jug"))), ("td", "Touchdowns", bool(c.get("sec_td"))), ("casas", "Kalshi", bool(c.get("sec_casas"))), ("props", "Props destacados", bool(c.get("sec_top")))])
+    t3 = sub3 + c.get("sec_eq", "") + c.get("sec_elo", "") + c.get("sec_jug", "") + c.get("sec_td", "") + c.get("sec_casas", "") + c.get("sec_top", "")
+    if not (c.get("sec_eq") or c.get("sec_elo") or c.get("sec_jug") or c.get("sec_td") or c.get("sec_casas") or c.get("sec_top")):
         t3 = '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores y props (corre el programa completo).</div>'
     sub4 = _subnav([("marcador", "Marcador", bool(c.get("sec_mc"))), ("confianza", "Confianza", bool(c.get("cred"))), ("fiab-props", "Props y TD", bool(c.get("sec_cal"))),
                     ("historial", "Historial", True), ("ayuda", "Cómo leer", True)])

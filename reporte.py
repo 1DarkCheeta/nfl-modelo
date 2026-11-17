@@ -385,6 +385,13 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
             mov_juego = MV.notas_por_juego(extras["mov_det"], res, wk, nm)
     except Exception as ex:
         print(f"  [aviso] no pude armar la seccion de movimientos ({ex})")
+    sec_jug = ""
+    try:                                   # explorador de jugadores: Hit Rate semana a semana de cualquier QB/RB/WR/TE (los 32 equipos)
+        import jugadores as JG
+        if extras and extras.get("pw") is not None:
+            sec_jug = JG.html_jugadores(JG.construir(r, extras, nm))
+    except Exception as ex:
+        print(f"  [aviso] no pude armar el explorador de jugadores ({ex})")
     try:                                   # over/under de puntos (total y por equipo) con linea editable
         import puntos as PT
         pt_data = PT.construir(r)
@@ -459,7 +466,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
             "cur": cur, "wk": wk, "me": me, "nm": nm, "res": res, "games": games, "PT": pt_data, "pt_partes": pt_partes, "qb": qb_an,
             "clima": r.get("clima"), "excl": excl, "sub": f"{n} partidos pendientes con línea publicada · generado el {generado:%d/%m/%Y %H:%M}",
             "generado_iso": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "resumen": resumen, "importante": importante,
-            "graficas": graficas, "ayuda": ayuda, "cred": cred, "hist_html": hist_html, "sec_qb": sec_qb, "sec_mov": sec_mov, "mov_juego": mov_juego, "sec_mc": sec_mc, "sec_cal": sec_cal,
+            "graficas": graficas, "ayuda": ayuda, "cred": cred, "hist_html": hist_html, "sec_qb": sec_qb, "sec_mov": sec_mov, "sec_jug": sec_jug, "mov_juego": mov_juego, "sec_mc": sec_mc, "sec_cal": sec_cal,
             "sec_eq": sec_eq, "sec_elo": sec_elo, "sec_td": sec_td, "sec_casas": sec_casas, "sec_top": sec_top,
             "ex_parts": ex_parts, "cards_ap": cards_ap})
         usa_web = True
@@ -497,6 +504,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
 {sec_qb}
 {sec_mov}
 {sec_elo}
+{sec_jug}
 {sec_td}
 {sec_casas}
 {sec_top}
@@ -525,6 +533,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         CSS_X += QB.CSS
     if sec_mov:
         CSS_X += MV.CSS
+    if sec_jug:
+        CSS_X, JS_X = CSS_X + JG.CSS, JS_X + JG.JS
     if usa_web:
         body, CSS_X, JS_X = body_web, CSS_X + WEB.CSS, JS_X + WEB.JS
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'

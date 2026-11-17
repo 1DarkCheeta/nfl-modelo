@@ -274,7 +274,8 @@ def calcular(r: dict, refresh: bool = True, log=print) -> dict:
     except Exception as ex:
         log(f"  [aviso] no pude armar los movimientos de jugadores ({ex})")
         mov_det, mov_of = pd.DataFrame(), pd.DataFrame()
-    return {"mov_det": mov_det, "mov_of": mov_of, "elo": ELO, "equipos": EQ, "todos": sorted(set(games[games.season == cur].home_team) | set(games[games.season == cur].away_team)),
+    return {"pw": pw[pw.season >= cur - 1], "depth": depth, "vigente": vigente,      # para el explorador de jugadores (jugadores.py)
+            "mov_det": mov_det, "mov_of": mov_of, "elo": ELO, "equipos": EQ, "todos": sorted(set(games[games.season == cur].home_team) | set(games[games.season == cur].away_team)),
             "P": P, "excl": excl, "perf": perf, "mats": mats, "T": T, "defs": defs, "top": top, "ev": ev,
             "shrink": shr, "semana": wk, "rbs": rbs, "ourlads": ou, "cov": cov, "cres": cres, "tasas": tasas, "cur": cur,
             "lineas": L, "V": V, "auto": auto, "tdauto": tdauto}
