@@ -201,6 +201,7 @@ Vistas listas para consultar: `v_jugador_temporada` (targets, recepciones, % atr
 | `props.py` / `jugadores_data.py` | Modelo de props (HistGradientBoosting + binomial negativa), descarga de jugadores, lesiones y depth charts |
 | `matchups.py` / `matchups_data.py` | Presión, blitz, yardas permitidas y rankings ataque vs defensa |
 | `reporte_extra.py` | Bloques HTML de matchups, props y calculadora |
+| `web.py` | Diseño de la página: pestañas, resumen por partido, selector de partido, texto plegable, frescura |
 | `qb.py` | Mariscales: quién abre frente al titular habitual, alertas y medición histórica |
 | `backtest.py` | Validación walk-forward 2015-2025 → `outputs/backtest_report.md` |
 
@@ -330,3 +331,20 @@ En `puntos.py`, al final de cada tarjeta de Over / under: **«Combinadas del mis
 ## Actualización más frecuente
 
 El workflow de GitHub (`.github/workflows/reporte.yml`) corre **cada 3 horas domingo, lunes y jueves** (días de partido: las lesiones, el clima y los mariscales cambian hasta el kickoff) y **una vez al día martes, miércoles, viernes y sábado**. También a mano: Actions > «Reporte NFL» > Run workflow. Los horarios (cron) están en UTC.
+
+---
+
+## Diseño de la página (pestañas y un partido a la vez)
+
+Archivo `web.py` (solo acomoda; **no calcula nada**). El reporte ahora tiene 4 pestañas fijas arriba:
+
+- **Esta semana**: el resumen de valor, **una fila por partido** (modelo vs mercado, línea, marcador esperado y avisos: ✔ posible valor, 🏈 mariscal distinto/en duda, 💨 viento, 🥶 frío, 💧 lluvia/nieve, 🩹 jugadores con proyección fuera o dudosos), la tabla de mariscales y las gráficas (plegadas).
+- **Partidos**: un selector con todos los partidos (semana en curso y siguiente) y, del partido elegido, cuatro sub-pestañas: **Apuestas** (modelo vs mercado y Kalshi), **Puntos y combinadas** (tus líneas del total, de cada equipo y las combinadas), **Props y TD** y **Matchup**. «Mostrar todos» los despliega uno tras otro. Tocar «Ver partido →» en cualquier fila te lleva directo.
+- **Equipos y jugadores**: equipo por equipo, Elo, touchdowns, Kalshi y props destacados.
+- **Calidad**: marcador, qué tanto confiar, historial y glosario («Cómo leer»).
+
+Además: los párrafos explicativos largos quedan en un «Cómo se lee» plegable; en celular las tablas anchas se deslizan con la primera columna fija, los botones son más grandes y las casillas no hacen zoom; botón ↑ para volver arriba; y junto al título un indicador **«actualizado hace X · próximo partido: …»** que se recalcula en el navegador (se pone naranja si faltan menos de 24 h para un partido y los datos tienen más de 6 h). Los enlaces antiguos (`#td`, `#marcador`, `#puntos`…) siguen funcionando y abren la pestaña correcta. Las horas se muestran en hora de Ciudad de México.
+
+**Nada de lo que hacías se perdió.** Las calculadoras (líneas editables del total y de cada equipo, combinadas, props, touchdowns, equipo por equipo y la combinada de jugadores) son las mismas y escuchan eventos a nivel de documento, así que funcionan igual aunque estén en otra pestaña. Se probó automáticamente en un navegador contra el diseño anterior con una semana completa: 243 cálculos de puntos, 108 de combinadas, 804 props, 326 touchdowns, 157 de equipo por equipo y la combinada de jugadores dieron **resultados idénticos**. Si algo falla al armar el diseño nuevo, `reporte.py` usa el anterior (una sola página larga); para forzarlo: variable de entorno `NFL_DISENO_ANTERIOR=1`.
+
+Peso: una semana completa pesa ~2.5 MB de HTML (≈0.6 MB comprimido por GitHub Pages; casi todo son las tablas de props); las imágenes cargan en diferido.

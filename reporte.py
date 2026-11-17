@@ -4,7 +4,7 @@ from __future__ import annotations
 import base64
 import html
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import matplotlib
@@ -365,7 +365,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
             f'resultado {tot["Resultado (unidades)"]:+.2f} unidades (1 unidad = una apuesta fija). Con tan pocas apuestas esto es ruido, no una tendencia.</p>')
 
     ex_html, sec_top, sec_cal, nav_extra, sec_td, sec_casas, sec_eq, sec_elo = {}, "", "", "", "", "", "", ""
-    sec_pt, nav_pt = "", ""
+    ex_parts, excl = {}, None
+    sec_pt, nav_pt, pt_data, pt_partes = "", "", None, {}
     sec_qb, nav_qb, qb_an = "", "", {}
     try:                                   # mariscales: quien abre frente al titular habitual (alertas)
         import qb as QB
@@ -378,7 +379,9 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         print(f"  [aviso] no pude armar los mariscales ({ex})")
     try:                                   # over/under de puntos (total y por equipo) con linea editable
         import puntos as PT
-        sec_pt = PT.html_puntos(PT.construir(r), nm)
+        pt_data = PT.construir(r)
+        sec_pt = PT.html_puntos(pt_data, nm)
+        pt_partes = PT.html_puntos(pt_data, nm, partes=True)
         nav_pt = '<a href="#puntos">Puntos</a>' if sec_pt else ""
     except Exception as ex:
         print(f"  [aviso] no pude armar el over/under de puntos ({ex})")
@@ -400,10 +403,13 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         P, perf, excl = extras["P"], extras["perf"], extras["excl"]
         cres, ecur, tasas = extras.get("cres"), extras.get("cur", cur), extras.get("tasas")
         for _, x in res.iterrows():
-            ex_html[x.game_id] = (RE.matchup_html(extras["mats"][x.game_id], extras.get("rbs")) if x.game_id in extras["mats"] else "") + \
-                RE.td_html(x.game_id, x.home_team, x.away_team, P, cres, ecur, extras.get("tdauto")) + \
-                RE.casas_juego_html(x.game_id, extras.get("V")) + \
-                RE.props_html(x.game_id, x.home_team, x.away_team, P, perf, excl, cres, ecur, tasas, extras.get("auto"))
+            ex_parts[x.game_id] = {
+                "matchup": RE.matchup_html(extras["mats"][x.game_id], extras.get("rbs")) if x.game_id in extras["mats"] else "",
+                "td": RE.td_html(x.game_id, x.home_team, x.away_team, P, cres, ecur, extras.get("tdauto")),
+                "casas": RE.casas_juego_html(x.game_id, extras.get("V")),
+                "props": RE.props_html(x.game_id, x.home_team, x.away_team, P, perf, excl, cres, ecur, tasas, extras.get("auto"))}
+            p_ = ex_parts[x.game_id]
+            ex_html[x.game_id] = p_["matchup"] + p_["td"] + p_["casas"] + p_["props"]
         sec_td = ('<h2 id="td">4. ¿Quién tiene más probabilidad de anotar touchdown esta semana?</h2>'
                   '<p class="explain">Los 20 jugadores con más probabilidad de anotar al menos un TD (por tierra o recepción) en toda la jornada. '
                   'Cada partido tiene abajo su lista completa, de más a menos probable, con el historial de local y visita.</p>'
@@ -421,6 +427,40 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         sec_cal = RE.calidad_html(extras["ev"], extras.get("cov"))
         nav_extra = ('<a href="#porequipo">Por equipo</a>' if sec_eq else '') + ('<a href="#elo">Elo</a>' if sec_elo else '') + '<a href="#td">Touchdowns</a><a href="#casas">Kalshi</a><a href="#props">Props</a>'
     cards = "".join(_card(x, me, (QB.nota_juego(qb_an, x.game_id) if qb_an else "") + ex_html.get(x.game_id, "")) for _, x in res.iterrows())
+    usa_web = False
+    try:                                   # diseno nuevo: pestanas, resumen por partido, un partido a la vez (ver web.py)
+        import os
+        if os.environ.get("NFL_DISENO_ANTERIOR"):         # para comparar con el diseno de una sola pagina
+            raise RuntimeError("diseno anterior pedido por NFL_DISENO_ANTERIOR")
+        import web as WEB
+        generado = datetime.now()
+        graficas = (f'''<h3>Margen esperado de cada partido</h3>
+<p class="explain">Cada fila es un partido. El rombo gris es lo que dice el mercado; el círculo azul (B) casi siempre cae pegado a él; el círculo naranja vacío (A) es la opinión independiente. Si A está lejos del rombo, A y el mercado discrepan.</p>
+<div class="chart"><img alt="Márgenes" src="data:image/png;base64,{figs['mar']}"></div>
+<h3>¿Quién gana? Modelo vs mercado</h3>
+<p class="explain">Probabilidad de que gane el equipo local. Si el punto azul y el rombo están muy juntos, el modelo coincide con el mercado.</p>
+<div class="chart"><img alt="Probabilidad de ganar" src="data:image/png;base64,{figs['prob']}"></div>
+<h3>¿Hay ventaja en alguna apuesta?</h3>
+<p class="explain">Cada barra es el mejor lado de ese partido en cada tipo de apuesta. <b>Hacia la izquierda (negativa) = la cuota paga menos de lo que vale: no conviene.</b> Solo las barras azules, que pasan la línea naranja de umbral, se consideran «posible valor». Si todas son grises, esta semana no hay nada.</p>
+<div class="chart"><img alt="Ventajas" src="data:image/png;base64,{figs['edge']}"></div>''')
+        cards_ap = {x.game_id: _card(x, me, (QB.nota_juego(qb_an, x.game_id) if qb_an else "")) for _, x in res.iterrows()}
+        importante = ('<div class="box"><b>Importante:</b> el modelo A no conoce lesiones ni mariscales; el B parte de la línea del mercado, que sí los conoce '
+                      '(los avisos de mariscal, clima y bajas están en cada partido). No es asesoría financiera: apuesta solo lo que puedas perder y donde sea legal.</div>')
+        ayuda = MODELOS.format(umbral=me * 100) + f'<details class="box"><summary><b>Qué significa cada número (glosario)</b></summary>{GLOSARIO}</details>'
+        body_web = WEB.armar({
+            "cur": cur, "wk": wk, "me": me, "nm": nm, "res": res, "games": games, "PT": pt_data, "pt_partes": pt_partes, "qb": qb_an,
+            "clima": r.get("clima"), "excl": excl, "sub": f"{n} partidos pendientes con línea publicada · generado el {generado:%d/%m/%Y %H:%M}",
+            "generado_iso": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "resumen": resumen, "importante": importante,
+            "graficas": graficas, "ayuda": ayuda, "cred": cred, "hist_html": hist_html, "sec_qb": sec_qb, "sec_mc": sec_mc, "sec_cal": sec_cal,
+            "sec_eq": sec_eq, "sec_elo": sec_elo, "sec_td": sec_td, "sec_casas": sec_casas, "sec_top": sec_top,
+            "ex_parts": ex_parts, "cards_ap": cards_ap})
+        usa_web = True
+    except Exception as ex:
+        import os
+        if not os.environ.get("NFL_DISENO_ANTERIOR"):
+            import traceback
+            traceback.print_exc()
+            print(f"  [aviso] no pude armar el diseño nuevo de la página ({ex}); uso el diseño anterior")
     body = f"""<main>
 <nav class="nav"><a href="#resumen">Resumen</a><a href="#equipos">Equipos</a>{nav_pt}{nav_qb}{nav_extra}<a href="#partidos">Partidos</a>{nav_mc}<a href="#historial">Historial</a></nav>
 <h1 id="resumen">NFL · Temporada {cur}, semana {wk}</h1>
@@ -474,6 +514,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         CSS_X += MC.CSS
     if sec_qb or qb_an:
         CSS_X += QB.CSS
+    if usa_web:
+        body, CSS_X, JS_X = body_web, CSS_X + WEB.CSS, JS_X + WEB.JS
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
     ruta = ruta or REPORTES / f"reporte_{cur}_semana{wk:02d}.html"
     ruta.write_text(doc, encoding="utf-8")

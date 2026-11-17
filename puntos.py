@@ -135,10 +135,12 @@ def _combinadas(g: dict, nombre) -> str:
             f'<th>Cuota de la casa (opcional)</th><th>Ventaja</th></tr></thead><tbody>{filas}</tbody></table></div></div>')
 
 
-def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
+def html_puntos(PT: dict | None, nombre=lambda t: t, partes: bool = False):
+    """HTML de la seccion. Con partes=True devuelve {"intro", "cards": {game_id: html}, "datos"} para armar la pagina por partido."""
     if not PT or not PT["juegos"]:
-        return ""
+        return {} if partes else ""
     cards = []
+    por_id = {}
     for g in PT["juegos"]:
         if g["mercado"]:
             nota_t, nota_h = "línea del mercado", "implícita: sale del spread y del total"
@@ -155,13 +157,16 @@ def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
         if g.get("qb"):
             wx += '<p class="pwn pqb">⚠ Mariscales: ' + html.escape(" ".join(g["qb"])) + " La línea del mercado ya lo incluye.</p>"
         cards.append(
-            f'<div class="eqcard pjuego" data-k="{g["id"]}"><h3>{html.escape(nombre(g["away"]))} @ {html.escape(nombre(g["home"]))} '
+            f'<div class="eqcard pjuego" data-k="{g["id"]}" data-g="{g["id"]}"><h3>{html.escape(nombre(g["away"]))} @ {html.escape(nombre(g["home"]))} '
             f'<small>semana {g["sem"]} · {g["fecha"]}</small></h3>{wx}{aviso}'
             + _bloque("t", "Total del partido", g["t"], g["lt"], nota_t)
             + _bloque("h", f"Puntos de {nombre(g['home'])} (local)", g["h"], g["lh"], nota_h)
             + _bloque("a", f"Puntos de {nombre(g['away'])} (visita)", g["a"], g["la"], nota_h) + _combinadas(g, nombre) + "</div>")
+        por_id[g["id"]] = cards[-1]
     q = json.dumps(PT["q"], separators=(",", ":"))
-    return f"""<h2 id="puntos">Over / under de puntos (total y por equipo)</h2>
+    datos = (f'<script id="pq" type="application/json">{q}</script>\n'
+             f'<script id="pqp" type="application/json">{json.dumps(PT["pares"], separators=(",", ":"))}</script>')
+    html_all = f"""<h2 id="puntos">Over / under de puntos (total y por equipo)</h2>
 <p class="explain">Para cada partido de esta semana y la siguiente: cuántos puntos espera el modelo y qué tan probable es que se pasen (<b>over</b>) o se queden cortos (<b>under</b>) de una línea.
 <b>Escribe cualquier línea</b> (o usa −1 / +1) y las probabilidades se recalculan al instante. El gráfico muestra cómo se reparten los marcadores posibles; la parte coloreada es el over.</p>
 <p class="explain"><b>Cómo leerlo:</b> «cuota justa» es la cuota que dejaría el negocio parejo con esa probabilidad; con cuota −110 hace falta acertar 52.4 % para no perder. En el historial (2013-2026) el modelo
@@ -173,8 +178,11 @@ viento de 15 mph o más el total real quedó en promedio <b>1.5 pts por debajo d
 Se calcula con los errores reales del modelo, partido por partido (los del margen y los del total del mismo juego, {PT['pares']['B']['n']:,} casos fuera de muestra). Resultado del historial: <b>el error del margen y el error del total casi no se relacionan</b> (correlación ≈ 0.02),
 así que la probabilidad de la combinada sale casi igual al producto de las dos por separado; la columna «si fueran independientes» te deja comprobarlo. Si la casa te paga una combinada menos de lo que dice la cuota justa, el exceso es su margen. Escribe la cuota de la casa (ej. +250) y verás la ventaja.</p>
 <div class="eqgrid" id="pgrid">{''.join(cards)}</div>
-<script id="pq" type="application/json">{q}</script>
-<script id="pqp" type="application/json">{json.dumps(PT["pares"], separators=(",", ":"))}</script>"""
+{datos}"""
+    if partes:
+        intro = html_all[:html_all.index('<div class="eqgrid" id="pgrid">')]
+        return {"intro": intro, "cards": por_id, "datos": datos}
+    return html_all
 
 
 JS = """
