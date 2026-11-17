@@ -201,6 +201,7 @@ Vistas listas para consultar: `v_jugador_temporada` (targets, recepciones, % atr
 | `props.py` / `jugadores_data.py` | Modelo de props (HistGradientBoosting + binomial negativa), descarga de jugadores, lesiones y depth charts |
 | `matchups.py` / `matchups_data.py` | Presión, blitz, yardas permitidas y rankings ataque vs defensa |
 | `reporte_extra.py` | Bloques HTML de matchups, props y calculadora |
+| `qb.py` | Mariscales: quién abre frente al titular habitual, alertas y medición histórica |
 | `backtest.py` | Validación walk-forward 2015-2025 → `outputs/backtest_report.md` |
 
 ## Qué dice el backtest (2015-2025)
@@ -307,3 +308,25 @@ Archivo `clima.py`. En la sección de puntos, debajo del nombre de cada partido,
 **Qué hace con el modelo.** El modelo de totales ya usaba viento y techo, pero en los partidos pendientes el viento llegaba vacío (= 0). Ahora recibe el pronóstico (topado en 20 mph) y la tarjeta muestra cuánto mueve el total esperado. Para desactivarlo: `"clima_en_modelo": false` en `config.json`; para no bajar el clima: variable de entorno `NFL_SIN_CLIMA=1`.
 
 **Qué esperar (backtest 2013-2026 con el clima REAL de cada juego, mejor que cualquier pronóstico).** Agregar temperatura y viento **no mejora la precisión** del modelo de totales frente a la línea del mercado: el mercado ya los descuenta. Con viento ≥ 15 mph el total real quedó en promedio 1.5 pts bajo la línea (417 partidos, ~2 errores estándar) y apostar el under en esos juegos (sesgo estimado solo con años previos) dio 55 % de acierto y +7.5 % de ROI en 267 apuestas, que con el azar de ±16 unidades no confirma una ventaja. En estadios con techo los totales salieron ~1.3 pts sobre la línea, pero apostar el over ahí no dio ventaja (51 %). Es información útil para entender un partido, no una señal de apuesta probada.
+
+---
+
+## Mariscales (QB titular o suplente)
+
+Archivo `qb.py`. Sección **«Mariscales: ¿juega el titular?»** (enlace arriba) y aviso naranja dentro de la tarjeta de cada partido afectado y en el bloque de Over / under. Para cada partido con props compara el mariscal que usan los props (Kalshi > Ourlads > depth chart, sin los lesionados Out/Doubtful, incluyendo los de ESPN) con el **titular habitual** del equipo (quien abrió más de los últimos 8 partidos) y avisa si: abre un QB distinto (con el motivo: titular de baja/dudoso o sin lesión reportada), el titular está *Questionable*/*Doubtful*, o el titular regresa. «Peso según Elo» estima cuántos puntos de spread vale el cambio con el Elo del QB (25 puntos de Elo ≈ 1 punto); un QB sin historial cuenta como promedio, así que es una referencia optimista.
+
+**Medición (2006-2025, ~10,800 equipos-partido, 22 % con QB distinto).** El mercado ya descuenta el cambio: el equipo cubre el spread el 49 % de las veces con un QB distinto y con el titular de siempre, la diferencia contra la línea es −0.2 ± 0.3 pts, y la dispersión del resultado casi no cambia (13.1 vs 13.2 pts). En QB con menos de 2 abridos previos con ese equipo (912 casos) el descuento fue algo mayor (−0.5 ± 0.4), dentro del ruido. En el total los partidos con cambio quedaron ~0.9 pts abajo de lo normal contra la línea (±0.4, dato débil). **Por eso no se corrigen las probabilidades**: el modelo B parte de la línea, que ya sabe quién juega. El aviso sirve para enterarte y para saber que los props de ese QB tienen más incertidumbre (usan el promedio de debutantes de su ronda del draft, ver «Jugadores sin historial»). La medición se recalcula en cada reporte (`qb.medir`). Solo cubre los partidos de la semana con proyección de props.
+
+---
+
+## Combinadas del mismo partido
+
+En `puntos.py`, al final de cada tarjeta de Over / under: **«Combinadas del mismo partido»**. Con tu **spread** (−3.5 = el local es favorito por 3.5) y tu **total** (ambos editables, ↺ para volver a las líneas del mercado) da la probabilidad conjunta de 8 combinaciones: *cada equipo cubre el spread* y *cada equipo gana*, cada una con *OVER* o *UNDER*, con la **cuota justa**, la probabilidad que saldría si las dos cosas fueran independientes, y una casilla opcional **«Cuota de la casa»** (ej. +250) que muestra la ventaja (modelo − probabilidad implícita).
+
+**Cómo se calcula.** Se parte del margen y total esperados del partido y se les suman 1,500 pares de errores reales del mismo juego (margen y total, fuera de muestra, modelo A o B según el partido); los puntos se redondean a enteros y los empates con la línea (push) se excluyen. **Hallazgo del historial (5,046 partidos):** la correlación entre el error del margen y el error del total es ≈ 0.02, así que la probabilidad conjunta sale prácticamente igual al producto de las dos por separado, y modelarla no mejora la precisión (Brier 0.1842 vs 0.1839 del producto; la combinada «cubre + over» real fue 24.3 %). Es decir: no hay una «correlación mágica» que explotar; la utilidad es calcular cualquier combinación con tus líneas y comparar contra el precio de la casa (que incluye su margen). Como todo lo de puntos, contra la línea del mercado el modelo no tiene ventaja confirmada.
+
+---
+
+## Actualización más frecuente
+
+El workflow de GitHub (`.github/workflows/reporte.yml`) corre **cada 3 horas domingo, lunes y jueves** (días de partido: las lesiones, el clima y los mariscales cambian hasta el kickoff) y **una vez al día martes, miércoles, viernes y sábado**. También a mano: Actions > «Reporte NFL» > Run workflow. Los horarios (cron) están en UTC.

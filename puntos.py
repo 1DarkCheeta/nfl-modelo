@@ -40,6 +40,20 @@ def _cuantiles(oos: pd.DataFrame) -> dict:
     return out
 
 
+NPARES = 1500
+
+
+def _pares(oos: pd.DataFrame) -> dict:
+    """Pares (error de margen, error de total) del MISMO partido, fuera de muestra: sirven para combinar apuestas del mismo juego."""
+    o = oos[oos.result.notna() & oos.total.notna()]
+    out = {}
+    for v in "AB":
+        d = o.dropna(subset=[f"pred_t{v}", f"pred_m{v}"])
+        d = d.sample(n=min(NPARES, len(d)), random_state=7)
+        out[v] = {"m": (d.result - d[f"pred_m{v}"]).round(1).tolist(), "t": (d.total - d[f"pred_t{v}"]).round(1).tolist(), "n": int(len(d))}
+    return out
+
+
 def _redondea(x: float) -> float:
     return float(np.round(x * 2) / 2)
 
@@ -75,10 +89,10 @@ def construir(r: dict, semanas: int = 2) -> dict | None:
         else:
             lt, lh, la = _redondea(t), _redondea(mh), _redondea(ma)
         juegos.append({"id": x.game_id, "sem": int(x.week), "fecha": pd.Timestamp(x.gameday).strftime("%d/%m"), "away": x.away_team,
-                       "home": x.home_team, "mod": v, "t": round(t, 1), "h": round(mh, 1), "a": round(ma, 1),
-                       "lt": lt, "lh": lh, "la": la, "mercado": bool(con_linea),
-                       "clima": (r.get("clima") or {}).get(x.game_id), "dw": round(dw, 1), "vn": round(viento_normal)})
-    return {"juegos": juegos, "q": _cuantiles(oos), "cur": cur}
+                       "home": x.home_team, "mod": v, "m": round(m, 1), "t": round(t, 1), "h": round(mh, 1), "a": round(ma, 1),
+                       "lt": lt, "lh": lh, "la": la, "spread": float(x.spread_line) if con_linea else None, "mercado": bool(con_linea),
+                       "clima": (r.get("clima") or {}).get(x.game_id), "qb": ((r.get("qb") or {}).get(x.game_id) or {}).get("avisos") or [], "dw": round(dw, 1), "vn": round(viento_normal)})
+    return {"juegos": juegos, "q": _cuantiles(oos), "pares": _pares(oos), "cur": cur}
 
 
 def _feats(v: str, k: str):
@@ -99,6 +113,28 @@ def _bloque(clave: str, titulo: str, esperado: float, linea: float, nota: str) -
             f'<div class="pax"><span class="pax0"></span><span>puntos</span><span class="pax1"></span></div></div>')
 
 
+COMBOS = [("c0", "{h} cubre el spread y OVER"), ("c1", "{h} cubre el spread y UNDER"),
+          ("c2", "{a} cubre el spread y OVER"), ("c3", "{a} cubre el spread y UNDER"),
+          ("w0", "{h} gana y OVER"), ("w1", "{h} gana y UNDER"),
+          ("w2", "{a} gana y OVER"), ("w3", "{a} gana y UNDER")]
+
+
+def _combinadas(g: dict, nombre) -> str:
+    sp = -g["spread"] if g.get("spread") is not None else -_redondea(g["m"])      # spread del local como lo publican las casas (−3.5 = favorito)
+    h, a = html.escape(nombre(g["home"])), html.escape(nombre(g["away"]))
+    filas = "".join(
+        f'<tr data-k="{k}"><td class="l">{t.format(h=h, a=a)}</td><td class="cp"></td><td class="ci"></td><td class="cj"></td>'
+        f'<td><input type="text" class="cq" inputmode="numeric" placeholder="+250" size="5"></td><td class="ce"></td></tr>' for k, t in COMBOS)
+    nota = "línea del mercado" if g["mercado"] else "aún sin línea: punto de partida = lo que espera el modelo"
+    return (f'<div class="pcb" data-m="{g["m"]}" data-t="{g["t"]}" data-sp0="{sp:g}" data-lt0="{g["lt"]:g}">'
+            f'<div class="pt"><b>Combinadas del mismo partido</b> <span class="pexp">probabilidad de que pasen las dos cosas a la vez</span></div>'
+            f'<div class="plin"><label>Spread de {h} <input type="number" class="cspin" step="0.5" inputmode="decimal" value="{sp:g}"></label>'
+            f'<label>Total <input type="number" class="ctoin" step="0.5" inputmode="decimal" value="{g["lt"]:g}"></label>'
+            f'<button type="button" class="creset" title="volver a las líneas originales">↺</button> <span class="pnota">{html.escape(nota)}; −3.5 = {h} favorito por 3.5</span></div>'
+            f'<div class="scroll"><table class="ctab"><thead><tr><th class="l">Combinación</th><th>Prob.</th><th>Si fueran independientes</th><th>Cuota justa</th>'
+            f'<th>Cuota de la casa (opcional)</th><th>Ventaja</th></tr></thead><tbody>{filas}</tbody></table></div></div>')
+
+
 def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
     if not PT or not PT["juegos"]:
         return ""
@@ -116,12 +152,14 @@ def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
             wx += f'<p class="pwn">{html.escape(nota_w)}</p>'
         if abs(g.get("dw", 0)) >= 0.3:
             wx += f'<p class="pwn">El modelo ya incluye el viento pronosticado: mueve el total esperado {g["dw"]:+.1f} pts frente a un día de viento normal (~{g["vn"]} mph).</p>'
+        if g.get("qb"):
+            wx += '<p class="pwn pqb">⚠ Mariscales: ' + html.escape(" ".join(g["qb"])) + " La línea del mercado ya lo incluye.</p>"
         cards.append(
             f'<div class="eqcard pjuego" data-k="{g["id"]}"><h3>{html.escape(nombre(g["away"]))} @ {html.escape(nombre(g["home"]))} '
             f'<small>semana {g["sem"]} · {g["fecha"]}</small></h3>{wx}{aviso}'
             + _bloque("t", "Total del partido", g["t"], g["lt"], nota_t)
             + _bloque("h", f"Puntos de {nombre(g['home'])} (local)", g["h"], g["lh"], nota_h)
-            + _bloque("a", f"Puntos de {nombre(g['away'])} (visita)", g["a"], g["la"], nota_h) + "</div>")
+            + _bloque("a", f"Puntos de {nombre(g['away'])} (visita)", g["a"], g["la"], nota_h) + _combinadas(g, nombre) + "</div>")
     q = json.dumps(PT["q"], separators=(",", ":"))
     return f"""<h2 id="puntos">Over / under de puntos (total y por equipo)</h2>
 <p class="explain">Para cada partido de esta semana y la siguiente: cuántos puntos espera el modelo y qué tan probable es que se pasen (<b>over</b>) o se queden cortos (<b>under</b>) de una línea.
@@ -131,8 +169,12 @@ def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
 Las probabilidades de líneas lejanas (±14 puntos del esperado) coincidieron con la frecuencia real con un error típico de 1-2 puntos porcentuales.</p>
 <p class="explain"><b>Clima:</b> debajo del nombre de cada partido está el pronóstico del estadio para la hora del juego (Open-Meteo; se vuelve a bajar en cada corrida, así que es más confiable mientras más cerca esté el partido). El modelo de totales ya usa el viento y el techo. En el historial (2013-2026), con
 viento de 15 mph o más el total real quedó en promedio <b>1.5 pts por debajo de la línea</b> (417 partidos, unos 2 errores estándar), pero apostar a eso no dio una ventaja confirmada. Con techo cerrado el clima no afecta.</p>
+<p class="explain"><b>Combinadas del mismo partido:</b> al final de cada tarjeta hay una tabla con la probabilidad de que pasen <b>dos cosas a la vez</b> (por ejemplo «el local cubre y se pasa el total»), con tus líneas de spread y total, y su cuota justa.
+Se calcula con los errores reales del modelo, partido por partido (los del margen y los del total del mismo juego, {PT['pares']['B']['n']:,} casos fuera de muestra). Resultado del historial: <b>el error del margen y el error del total casi no se relacionan</b> (correlación ≈ 0.02),
+así que la probabilidad de la combinada sale casi igual al producto de las dos por separado; la columna «si fueran independientes» te deja comprobarlo. Si la casa te paga una combinada menos de lo que dice la cuota justa, el exceso es su margen. Escribe la cuota de la casa (ej. +250) y verás la ventaja.</p>
 <div class="eqgrid" id="pgrid">{''.join(cards)}</div>
-<script id="pq" type="application/json">{q}</script>"""
+<script id="pq" type="application/json">{q}</script>
+<script id="pqp" type="application/json">{json.dumps(PT["pares"], separators=(",", ":"))}</script>"""
 
 
 JS = """
@@ -188,4 +230,47 @@ svg.pdist{width:100%;height:64px;margin-top:4px;display:block}
 .pax{display:flex;justify-content:space-between;font-size:.7rem;color:var(--ink2)}
 .pav{font-size:.8rem;color:var(--ink2);background:rgba(217,130,43,.12);border-radius:8px;padding:6px 8px;margin:4px 0}
 """
-CSS = CSS + _clima.CSS
+CSS = CSS + _clima.CSS + ".pqb{background:rgba(217,130,43,.14);border-radius:8px;padding:6px 8px}"
+
+
+JS = JS + """
+<script>
+(function(){
+var QP=null;try{QP=JSON.parse(document.getElementById('pqp').textContent);}catch(e){}
+if(!QP)return;
+function pc(p){var v=Math.round(p*1000)/10;return v<0.1?'<0.1%':(v>99.9?'>99.9%':v.toFixed(1)+'%');}
+function cj(p){if(p<0.005||p>0.995)return '—';var o=p>=0.5?Math.round(-100*p/(1-p)):Math.round(100*(1-p)/p);return (o>0?'+':'')+o;}
+function imp(o){o=parseFloat(String(o).replace('+',''));if(isNaN(o)||o===0||Math.abs(o)<100)return NaN;return o>0?100/(o+100):-o/(-o+100);}
+function calcC(b){
+ var card=b.closest('.pjuego'),D=QP[card.querySelector('.pav')?'A':'B'],m=parseFloat(b.dataset.m),t=parseFloat(b.dataset.t);
+ var s=parseFloat(b.querySelector('.cspin').value),L=parseFloat(b.querySelector('.ctoin').value),i,n=D.m.length;
+ var rows={};b.querySelectorAll('tbody tr').forEach(function(r){rows[r.dataset.k]=r;});
+ if(isNaN(s)||isNaN(L)){Object.keys(rows).forEach(function(k){rows[k].querySelector('.cp').textContent='escribe las líneas';});return;}
+ var a=[0,0,0,0],w=[0,0,0,0],Vc=0,Vw=0,cv=0,ovc=0,wn=0,ovw=0;
+ for(i=0;i<n;i++){var mm=Math.round(m+D.m[i]),tt=Math.round(t+D.t[i]);if(tt===L)continue;var o=tt>L,cs=mm+s;
+  if(cs!==0){Vc++;var h=cs>0;if(h)cv++;if(o)ovc++;a[(h?0:2)+(o?0:1)]++;}
+  if(mm!==0){Vw++;var g=mm>0;if(g)wn++;if(o)ovw++;w[(g?0:2)+(o?0:1)]++;}}
+ function fill(pre,cnt,V,pa,po){for(var j=0;j<4;j++){var r=rows[pre+j];if(!r)continue;
+  var p=V>0?cnt[j]/V:NaN,pi=(j<2?pa:1-pa)*((j%2===0)?po:1-po);
+  r.querySelector('.cp').innerHTML='<b>'+pc(p)+'</b>';r.querySelector('.ci').textContent=pc(pi);r.querySelector('.cj').textContent=cj(p);
+  var q=imp(r.querySelector('.cq').value),e=r.querySelector('.ce');
+  if(isNaN(q)){e.textContent='';e.className='ce';}else{var d=(p-q)*100;e.textContent=(d>=0?'+':'')+d.toFixed(1)+' pts';e.className='ce '+(d>=2?'cpos':(d<0?'cneg':''));}}}
+ fill('c',a,Vc,Vc?cv/Vc:0.5,Vc?ovc/Vc:0.5);fill('w',w,Vw,Vw?wn/Vw:0.5,Vw?ovw/Vw:0.5);
+}
+function todos(){document.querySelectorAll('#pgrid .pcb').forEach(calcC);}
+document.addEventListener('input',function(e){var t=e.target;if(t.classList&&(t.classList.contains('cspin')||t.classList.contains('ctoin')||t.classList.contains('cq')))calcC(t.closest('.pcb'));});
+document.addEventListener('click',function(e){var t=e.target;if(t.classList&&t.classList.contains('creset')){var b=t.closest('.pcb');b.querySelector('.cspin').value=b.dataset.sp0;b.querySelector('.ctoin').value=b.dataset.lt0;calcC(b);}});
+todos();
+})();
+</script>
+"""
+
+CSS = CSS + """
+.pcb{padding:10px 0;border-top:1px solid var(--line)}
+.ctab{width:100%;border-collapse:collapse;font-size:.8rem}.ctab th,.ctab td{padding:4px 5px;border-bottom:1px solid var(--line);text-align:right}
+.ctab th{font-weight:600;color:var(--ink2);font-size:.72rem}.ctab td.l,.ctab th.l{text-align:left}
+input.cspin,input.ctoin{width:72px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit;text-align:right}
+input.cq{width:62px;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit;text-align:right}
+.creset{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:2px 9px;font:inherit;cursor:pointer}
+.ce.cpos{color:#0a7d3c;font-weight:600}.ce.cneg{color:#b3261e}
+"""
