@@ -202,6 +202,7 @@ Vistas listas para consultar: `v_jugador_temporada` (targets, recepciones, % atr
 | `matchups.py` / `matchups_data.py` | Presión, blitz, yardas permitidas y rankings ataque vs defensa |
 | `reporte_extra.py` | Bloques HTML de matchups, props y calculadora |
 | `web.py` | Diseño de la página: pestañas, resumen por partido, selector de partido, texto plegable, frescura |
+| `movimientos.py` | Traspasos y fichajes: quién se movió a dónde, y que el modelo use el equipo vigente de cada jugador |
 | `qb.py` | Mariscales: quién abre frente al titular habitual, alertas y medición histórica |
 | `backtest.py` | Validación walk-forward 2015-2025 → `outputs/backtest_report.md` |
 
@@ -319,6 +320,15 @@ Archivo `qb.py`. Sección **«Mariscales: ¿juega el titular?»** (enlace arriba
 **Medición (2006-2025, ~10,800 equipos-partido, 22 % con QB distinto).** El mercado ya descuenta el cambio: el equipo cubre el spread el 49 % de las veces con un QB distinto y con el titular de siempre, la diferencia contra la línea es −0.2 ± 0.3 pts, y la dispersión del resultado casi no cambia (13.1 vs 13.2 pts). En QB con menos de 2 abridos previos con ese equipo (912 casos) el descuento fue algo mayor (−0.5 ± 0.4), dentro del ruido. En el total los partidos con cambio quedaron ~0.9 pts abajo de lo normal contra la línea (±0.4, dato débil). **Por eso no se corrigen las probabilidades**: el modelo B parte de la línea, que ya sabe quién juega. El aviso sirve para enterarte y para saber que los props de ese QB tienen más incertidumbre (usan el promedio de debutantes de su ronda del draft, ver «Jugadores sin historial»). La medición se recalcula en cada reporte (`qb.medir`). Solo cubre los partidos de la semana con proyección de props.
 
 ---
+
+## Movimientos de jugadores (traspasos y fichajes)
+
+Archivo `movimientos.py`. Las estadísticas por jugador traen el equipo de su **último partido**; si lo traspasaron y aún no juega con el nuevo equipo (p. ej. Jacoby Brissett, ARI → BAL el 6-nov-2026, con semana de descanso de por medio), el modelo lo seguía proyectando con el equipo viejo y el equipo nuevo seguía viendo a otro como mariscal. Ahora, en cada corrida:
+
+- `equipos_vigentes` lee el **depth chart actual** (nflverse, se actualiza a diario) y da el equipo vigente de cada jugador cuyo depth chart no coincide con su último partido. Ese equipo se usa en los props (`props.candidatos`), en los touchdowns, en las lesiones de Ourlads y para decidir quién abre de mariscal (`extras._qb_titular`). Se ve en el log: «Traspasos aún sin partido con su nuevo equipo: N».
+- `detectar` lista a los jugadores de ataque (QB, RB, WR, TE) que cambiaron de equipo esta temporada, desde qué semana juegan con el nuevo equipo (o «todavía no juega»), su rol actual y su uso antes/después. Se guarda una foto diaria en la tabla `movimientos_jugadores` de la base de datos.
+- `TRASPASOS_2026` es la lista fija de los traspasos del periodo (cierre: martes 10-nov-2026, 4 p. m. ET; fuentes ESPN, DAZN y SI) y se cruza con los datos para avisar si el modelo ya tiene a cada jugador con su equipo nuevo. Los de línea ofensiva/defensiva se muestran pero no entran al modelo de jugadores. **Para el próximo periodo de traspasos hay que actualizar esa lista a mano** (lo detectado con los datos sí es automático).
+- En la página: sección **«Movimientos de jugadores»** en la pestaña «Esta semana», insignia «🔁 fichajes» en los partidos afectados, y los avisos de Mariscales ahora dicen «traspasado a …» o «llegó por traspaso desde …».
 
 ## Combinadas del mismo partido
 

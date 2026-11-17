@@ -465,12 +465,15 @@ def cargar_evaluacion(X, refrescar=False, log=print) -> dict:
 
 
 # ------------------------------------------------------------------ proyeccion de la semana
-def candidatos(games, pw, week_games: pd.DataFrame, inj: pd.DataFrame, season: int, week: int):
-    """Jugadores probables de jugar en los partidos pendientes (con su fila 'futura')."""
+def candidatos(games, pw, week_games: pd.DataFrame, inj: pd.DataFrame, season: int, week: int, vigente: dict | None = None):
+    """Jugadores probables de jugar en los partidos pendientes (con su fila 'futura').
+    `vigente` = {player_id: equipo actual} para quien lo traspasaron y aun no juega con el nuevo (ver movimientos.py)."""
     done = games[games.result.notna()]
     tw = pd.concat([done[["season", "week", "home_team"]].rename(columns={"home_team": "team"}),
                     done[["season", "week", "away_team"]].rename(columns={"away_team": "team"})])
     last = pw.sort_values(["season", "week"]).groupby("player_id").tail(1)
+    if vigente:
+        last = last.assign(team=last.player_id.map(vigente).fillna(last.team))
     teams = set(week_games.home_team) | set(week_games.away_team)
     last = last[last.team.isin(teams)]
     keep = []
@@ -484,9 +487,9 @@ def candidatos(games, pw, week_games: pd.DataFrame, inj: pd.DataFrame, season: i
 
 
 def proyectar(games, pw, inj, week_games, season, week, evalu: dict, models: dict | None = None, X_full=None, prefer=None,
-              depth: pd.DataFrame | None = None, draft: pd.DataFrame | None = None):
+              depth: pd.DataFrame | None = None, draft: pd.DataFrame | None = None, vigente: dict | None = None):
     """DataFrame con una fila por jugador-mercado de los partidos pendientes."""
-    cand = candidatos(games, pw, week_games, inj, season, week)
+    cand = candidatos(games, pw, week_games, inj, season, week, vigente)
     if depth is not None and len(depth):          # novatos / jugadores sin partidos que el depth chart ya pone en un rol
         cand = SH.candidatos_nuevos(cand, pw, depth, set(week_games.home_team) | set(week_games.away_team), season, week)
     for s in PSTATS:

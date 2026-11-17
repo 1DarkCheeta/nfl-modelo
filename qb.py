@@ -89,6 +89,13 @@ def analizar(r: dict, extras: dict | None, log=print) -> dict:
     if excl is not None and len(excl):
         for e in excl[excl.position == "QB"].itertuples():
             fuera[(e.team, _nombre_norm(e.name))] = (e.estado, getattr(e, "lesion", "") or "")
+    md = extras.get("mov_det")                       # traspasos: quien se fue y quien llego (ver movimientos.py)
+    se_fue, llego = {}, {}
+    if md is not None and len(md):
+        for m in md[md.position == "QB"].itertuples():
+            se_fue[(m.de, m.player_id)] = m.a
+            if pd.isna(m.semana):
+                llego[(m.a, m.player_id)] = m.de
     out: dict = {}
     pend = games[games.game_id.isin(P.game_id.unique())]
     for g in pend.itertuples():
@@ -111,11 +118,15 @@ def analizar(r: dict, extras: dict | None, log=print) -> dict:
             if not igual:
                 d["estado"] = "cambio"
                 d["dpts"] = (d["esperado"]["elo"] - Q.get(hab["id"], 0.0)) / EL.PTS_POR_PUNTO
-                if hab_fuera:
+                if (team, hab["id"]) in se_fue:
+                    why = f"{hab['name']} (traspasado a {se_fue[(team, hab['id'])]})"
+                elif hab_fuera:
                     why = f"{hab['name']} ({'baja' if hab_fuera[0] == 'Out' else 'dudoso'}{' · ' + hab_fuera[1] if hab_fuera[1] else ''})"
                 else:
                     why = f"{hab['name']} no aparece como lesionado esta semana (puede ser decisión técnica o lesión larga)"
                 dn = "sin historial: contado como mariscal promedio, puede ser optimista" if d["sin_hist"] else f"{d['esperado']['n_prior']} partidos previos"
+                if (team, exp.player_id) in llego:
+                    dn += f"; llegó por traspaso desde {llego[(team, exp.player_id)]} y aún no juega con el equipo"
                 d["texto"] = f"{team}: abre {exp['name']} ({dn}) en vez de {why}."
             else:
                 if d["esperado"]["estado"] in ("Questionable", "Doubtful"):

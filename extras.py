@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 import fuentes_web as FW
+import movimientos as MOV
 import matchups as mu_mod
 import cobertura
 import lineas_casas as LC
@@ -75,7 +76,7 @@ def _cruce_ourlads(P: pd.DataFrame, excl: pd.DataFrame, ou: pd.DataFrame):
     return P, excl
 
 
-def _inj_con_ourlads(inj: pd.DataFrame, ou: pd.DataFrame, pw: pd.DataFrame, cur: int, wk: int) -> pd.DataFrame:
+def _inj_con_ourlads(inj: pd.DataFrame, ou: pd.DataFrame, pw: pd.DataFrame, cur: int, wk: int, vigente: dict | None = None) -> pd.DataFrame:
     """Agrega al reporte de lesiones de la semana a los jugadores que Ourlads marca Out/Doubtful y el reporte oficial aun no."""
     if ou is None or ou.empty:
         return inj
@@ -83,6 +84,7 @@ def _inj_con_ourlads(inj: pd.DataFrame, ou: pd.DataFrame, pw: pd.DataFrame, cur:
     if mal.empty:
         return inj
     q = pw[pw.season == cur].sort_values("week").drop_duplicates("player_id", keep="last")
+    q = q.assign(team=q.player_id.map(vigente or {}).fillna(q.team))
     ids = {(r.team, FW.nombre_norm(r.name)): (r.player_id, r.name, r.position) for r in q.itertuples()}
     ya = set(inj[(inj.season == cur) & (inj.week == wk) & inj.report_status.isin(["Out", "Doubtful"])].gsis_id) if len(inj) else set()
     filas = []
@@ -109,13 +111,14 @@ def _qb_de_casas(L: pd.DataFrame, pw: pd.DataFrame, cur: int) -> set:
     return {por_nombre[k] for k in {nombre_norm(j) for j in L[L.mercado == "pass_yds"].jugador} if k in por_nombre}
 
 
-def _qb_titular(ou: pd.DataFrame, depth: pd.DataFrame, pw: pd.DataFrame, cur: int) -> set:
+def _qb_titular(ou: pd.DataFrame, depth: pd.DataFrame, pw: pd.DataFrame, cur: int, vigente: dict | None = None) -> set:
     """QB titular por equipo: el primero de Ourlads que no este Out/Doubtful; si no se puede cruzar, el del depth chart de nflverse."""
     nv = ({r.team: r.gsis_id for r in depth[(depth.pos_abb == "QB") & (depth.pos_rank == 1)].itertuples()}
           if len(depth) else {})
     if ou is None or ou.empty:
         return set(nv.values()) or None
     q = pw[(pw.season == cur) & (pw.position == "QB")].sort_values("week").drop_duplicates("player_id", keep="last")
+    q = q.assign(team=q.player_id.map(vigente or {}).fillna(q.team))      # un QB traspasado cuenta con su equipo nuevo
     ids = {(r.team, FW.nombre_norm(r.name)): r.player_id for r in q.itertuples()}
     out = set()
     for team, g in ou[ou.posicion == "QB"].sort_values("orden").groupby("equipo"):
@@ -171,7 +174,14 @@ def calcular(r: dict, refresh: bool = True, log=print) -> dict:
         inj = LE.agregar_a_reporte(inj, E, pw, cur, wk)
     except Exception as ex:
         log(f"  [aviso] no pude usar los lesionados de ESPN ({ex})")
-    inj = _inj_con_ourlads(inj, ou, pw, cur, wk)
+    try:                                   # traspasos: jugadores cuyo depth chart ya los pone en otro equipo que el de su ultimo partido
+        vigente = MOV.equipos_vigentes(pw, depth, cur)
+        if vigente:
+            log(f"  Traspasos aun sin partido con su nuevo equipo: {len(vigente)} (se proyectan con el equipo nuevo)")
+    except Exception as ex:
+        log(f"  [aviso] no pude revisar los traspasos ({ex})")
+        vigente = {}
+    inj = _inj_con_ourlads(inj, ou, pw, cur, wk, vigente)
     log("Modelo de props ...")
     try:                                   # snaps de la temporada actual (variables de rol)
         from jugadores_data import load_snaps
@@ -180,7 +190,7 @@ def calcular(r: dict, refresh: bool = True, log=print) -> dict:
         log(f"  [aviso] no pude actualizar los snaps ({ex}); uso los guardados")
     X, tf, _ = props.construir_X(games, pw)
     ev = props.cargar_evaluacion(X, log=log)
-    prefer = _qb_titular(ou, depth, pw, cur)
+    prefer = _qb_titular(ou, depth, pw, cur, vigente)
     # lineas y precios de las casas (Kalshi; DraftKings via The Odds API si hay llave): se leen solas
     try:
         L = LC.cargar(refresh, log)
@@ -189,9 +199,10 @@ def calcular(r: dict, refresh: bool = True, log=print) -> dict:
         L = pd.DataFrame()
     ka = _qb_de_casas(L, pw, cur)                        # el mercado sabe quien abre de titular: manda sobre el depth chart
     eq = pw.sort_values(["season", "week"]).drop_duplicates("player_id", keep="last").set_index("player_id").team.to_dict()
+    eq.update(vigente)
     equipos_k = {eq.get(i) for i in ka}
     prefer = {i for i in prefer if eq.get(i) not in equipos_k} | ka
-    P, excl, tf, pstate = props.proyectar(games, pw, inj, wg, cur, wk, ev, prefer=prefer, depth=depth, draft=SH.load_draft(refresh))
+    P, excl, tf, pstate = props.proyectar(games, pw, inj, wg, cur, wk, ev, prefer=prefer, depth=depth, draft=SH.load_draft(refresh), vigente=vigente)
     P, excl = _cruce_ourlads(P, excl, ou)
     shr = _shrink_por_mercado(ev)
     P["s_cal"] = P.market.map(shr)
@@ -257,7 +268,13 @@ def calcular(r: dict, refresh: bool = True, log=print) -> dict:
     except Exception as ex:
         log(f"  [aviso] no pude calcular el Elo ({ex})")
         ELO = None
-    return {"elo": ELO, "equipos": EQ, "todos": sorted(set(games[games.season == cur].home_team) | set(games[games.season == cur].away_team)),
+    try:                                   # movimientos: quien se movio de equipo esta temporada (foto diaria en la base de datos)
+        mov_det, mov_of = MOV.detectar(pw, depth, cur), MOV.cruzar_oficial(pw, depth, cur)
+        MOV.guardar(mov_det, log)
+    except Exception as ex:
+        log(f"  [aviso] no pude armar los movimientos de jugadores ({ex})")
+        mov_det, mov_of = pd.DataFrame(), pd.DataFrame()
+    return {"mov_det": mov_det, "mov_of": mov_of, "elo": ELO, "equipos": EQ, "todos": sorted(set(games[games.season == cur].home_team) | set(games[games.season == cur].away_team)),
             "P": P, "excl": excl, "perf": perf, "mats": mats, "T": T, "defs": defs, "top": top, "ev": ev,
             "shrink": shr, "semana": wk, "rbs": rbs, "ourlads": ou, "cov": cov, "cres": cres, "tasas": tasas, "cur": cur,
             "lineas": L, "V": V, "auto": auto, "tdauto": tdauto}

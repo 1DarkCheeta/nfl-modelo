@@ -77,6 +77,9 @@ def _badges(gid: str, x, g: dict | None, c: dict) -> list[tuple[str, str, str]]:
             out.append(("w", "🏈 QB en duda", " ".join(a["avisos"])))
         elif "regresa" in est:
             out.append(("n", "🏈 regresa QB", " ".join(a["avisos"])))
+    mj = (c.get("mov_juego") or {}).get(gid)
+    if mj:
+        out.append(("n", "🔁 fichajes", mj))
     v = (c.get("clima") or {}).get(gid)
     if v and v.get("estado") == "ok" and v.get("interior") is not True:
         w, t, pp = v.get("viento_mph"), v.get("temp_f"), v.get("prob_precip")
@@ -221,7 +224,7 @@ def armar(c: dict) -> str:
     n_al = sum(1 for d in js_ if any(b[0] == "w" for b in d["bd"]))
 
     t1 = (f'{c["resumen"]}{c["importante"]}{resumen_partidos(js_, nm)}'
-          f'{c.get("sec_qb", "")}'
+          f'{c.get("sec_qb", "")}{c.get("sec_mov", "")}'
           f'<details class="sec" id="graficas"><span id="equipos"></span><summary>Gráficas de la semana: margen esperado, probabilidad de ganar y ventajas</summary>{c["graficas"]}</details>')
     t2 = ('<h2 id="partidos">Partido por partido</h2>'
           '<p class="leyenda">Elige un partido y mira, en sub-pestañas: las apuestas contra el mercado, '

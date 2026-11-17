@@ -377,6 +377,14 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
             nav_qb = '<a href="#qb">Mariscales</a>' if sec_qb else ""
     except Exception as ex:
         print(f"  [aviso] no pude armar los mariscales ({ex})")
+    sec_mov, mov_juego = "", {}
+    try:                                   # traspasos: quien se movio de equipo (y que el modelo los use con el equipo nuevo)
+        import movimientos as MV
+        if extras and extras.get("mov_det") is not None:
+            sec_mov = MV.html_movimientos(extras["mov_det"], extras.get("mov_of"), nm)
+            mov_juego = MV.notas_por_juego(extras["mov_det"], res, wk, nm)
+    except Exception as ex:
+        print(f"  [aviso] no pude armar la seccion de movimientos ({ex})")
     try:                                   # over/under de puntos (total y por equipo) con linea editable
         import puntos as PT
         pt_data = PT.construir(r)
@@ -443,7 +451,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
 <h3>¿Hay ventaja en alguna apuesta?</h3>
 <p class="explain">Cada barra es el mejor lado de ese partido en cada tipo de apuesta. <b>Hacia la izquierda (negativa) = la cuota paga menos de lo que vale: no conviene.</b> Solo las barras azules, que pasan la línea naranja de umbral, se consideran «posible valor». Si todas son grises, esta semana no hay nada.</p>
 <div class="chart"><img alt="Ventajas" src="data:image/png;base64,{figs['edge']}"></div>''')
-        cards_ap = {x.game_id: _card(x, me, (QB.nota_juego(qb_an, x.game_id) if qb_an else "")) for _, x in res.iterrows()}
+        cards_ap = {x.game_id: _card(x, me, (QB.nota_juego(qb_an, x.game_id) if qb_an else "") + (f'<div class="qbnota"><b>Movimientos:</b> {html.escape(mov_juego[x.game_id])}</div>' if x.game_id in mov_juego else "")) for _, x in res.iterrows()}
         importante = ('<div class="box"><b>Importante:</b> el modelo A no conoce lesiones ni mariscales; el B parte de la línea del mercado, que sí los conoce '
                       '(los avisos de mariscal, clima y bajas están en cada partido). No es asesoría financiera: apuesta solo lo que puedas perder y donde sea legal.</div>')
         ayuda = MODELOS.format(umbral=me * 100) + f'<details class="box"><summary><b>Qué significa cada número (glosario)</b></summary>{GLOSARIO}</details>'
@@ -451,7 +459,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
             "cur": cur, "wk": wk, "me": me, "nm": nm, "res": res, "games": games, "PT": pt_data, "pt_partes": pt_partes, "qb": qb_an,
             "clima": r.get("clima"), "excl": excl, "sub": f"{n} partidos pendientes con línea publicada · generado el {generado:%d/%m/%Y %H:%M}",
             "generado_iso": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "resumen": resumen, "importante": importante,
-            "graficas": graficas, "ayuda": ayuda, "cred": cred, "hist_html": hist_html, "sec_qb": sec_qb, "sec_mc": sec_mc, "sec_cal": sec_cal,
+            "graficas": graficas, "ayuda": ayuda, "cred": cred, "hist_html": hist_html, "sec_qb": sec_qb, "sec_mov": sec_mov, "mov_juego": mov_juego, "sec_mc": sec_mc, "sec_cal": sec_cal,
             "sec_eq": sec_eq, "sec_elo": sec_elo, "sec_td": sec_td, "sec_casas": sec_casas, "sec_top": sec_top,
             "ex_parts": ex_parts, "cards_ap": cards_ap})
         usa_web = True
@@ -487,6 +495,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
 {sec_eq}
 {sec_pt}
 {sec_qb}
+{sec_mov}
 {sec_elo}
 {sec_td}
 {sec_casas}
@@ -514,6 +523,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         CSS_X += MC.CSS
     if sec_qb or qb_an:
         CSS_X += QB.CSS
+    if sec_mov:
+        CSS_X += MV.CSS
     if usa_web:
         body, CSS_X, JS_X = body_web, CSS_X + WEB.CSS, JS_X + WEB.JS
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
