@@ -54,6 +54,8 @@ def construir(r: dict, semanas: int = 2) -> dict | None:
         return None
     wk0 = int(pend.week.min())
     pend = pend[pend.week < wk0 + semanas].sort_values(["gameday", "game_id"])
+    hist = df[df.result.notna() & (df.dome == 0) & df.wind.notna()] if "dome" in df.columns else df.iloc[0:0]
+    viento_normal = float(hist.wind.median()) if len(hist) else 7.0      # mph de un partido tipico al aire libre
     juegos = []
     for x in pend.itertuples():
         con_linea = pd.notna(x.spread_line) and pd.notna(x.total_line)
@@ -61,10 +63,10 @@ def construir(r: dict, semanas: int = 2) -> dict | None:
         row = pend.loc[[x.Index]]
         t = float(final[f"t{v}"][0].predict(row[_feats(v, "t")])[0])
         m = float(final[f"m{v}"][0].predict(row[_feats(v, "m")])[0])
-        dw = 0.0                                   # cuanto mueve el viento pronosticado al total esperado
+        dw = 0.0                                   # cuanto mueve el viento pronosticado al total esperado, frente a un dia de viento normal
         if "wind_eff" in row.columns and float(row.wind_eff.iloc[0]) != 0.0:
             r0 = row.copy()
-            r0["wind_eff"] = 0.0
+            r0["wind_eff"] = viento_normal
             dw = t - float(final[f"t{v}"][0].predict(r0[_feats(v, "t")])[0])
         mh, ma = (t + m) / 2, (t - m) / 2
         if con_linea:
@@ -75,7 +77,7 @@ def construir(r: dict, semanas: int = 2) -> dict | None:
         juegos.append({"id": x.game_id, "sem": int(x.week), "fecha": pd.Timestamp(x.gameday).strftime("%d/%m"), "away": x.away_team,
                        "home": x.home_team, "mod": v, "t": round(t, 1), "h": round(mh, 1), "a": round(ma, 1),
                        "lt": lt, "lh": lh, "la": la, "mercado": bool(con_linea),
-                       "clima": (r.get("clima") or {}).get(x.game_id), "dw": round(dw, 1)})
+                       "clima": (r.get("clima") or {}).get(x.game_id), "dw": round(dw, 1), "vn": round(viento_normal)})
     return {"juegos": juegos, "q": _cuantiles(oos), "cur": cur}
 
 
@@ -113,7 +115,7 @@ def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
         if nota_w:
             wx += f'<p class="pwn">{html.escape(nota_w)}</p>'
         if abs(g.get("dw", 0)) >= 0.3:
-            wx += f'<p class="pwn">El modelo ya incluye el viento: mueve el total esperado {g["dw"]:+.1f} pts.</p>'
+            wx += f'<p class="pwn">El modelo ya incluye el viento pronosticado: mueve el total esperado {g["dw"]:+.1f} pts frente a un día de viento normal (~{g["vn"]} mph).</p>'
         cards.append(
             f'<div class="eqcard pjuego" data-k="{g["id"]}"><h3>{html.escape(nombre(g["away"]))} @ {html.escape(nombre(g["home"]))} '
             f'<small>semana {g["sem"]} · {g["fecha"]}</small></h3>{wx}{aviso}'
