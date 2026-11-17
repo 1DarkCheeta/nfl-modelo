@@ -107,6 +107,10 @@ def _bloque(clave: str, titulo: str, esperado: float, linea: float, nota: str) -
             f'<div class="plin"><label>Línea <input type="number" class="plineain" step="0.5" inputmode="decimal" value="{linea:g}"></label>'
             f'<button type="button" class="pmenos">−1</button><button type="button" class="pmas">+1</button>'
             f'<button type="button" class="preset" title="volver a la línea original">↺</button> <span class="pnota">{html.escape(nota)}</span></div>'
+            f'<div class="plin pcuo"><b class="pcuol">Cuota de tu app</b>'
+            f'<label>OVER <input type="text" class="pcq pcqo" inputmode="text" autocomplete="off" placeholder="-110" size="5"></label>'
+            f'<label>UNDER <input type="text" class="pcq pcqu" inputmode="text" autocomplete="off" placeholder="-110" size="5"></label>'
+            f'<span class="pnota">escribe el momio tal como lo ves (ej. -110, +105)</span></div><div class="pcv"></div>'
             f'<div class="pres"><div class="pbar"><i></i></div>'
             f'<div class="pnum"><span class="pov"></span><span class="ppu"></span><span class="pun"></span></div>'
             f'<div class="pcj"></div></div><svg class="pdist" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>'
@@ -193,12 +197,25 @@ if(!QS)return;
 function pc(p){var v=Math.round(p*1000)/10;return v<0.1?'<0.1%':(v>99.9?'>99.9%':v.toFixed(1)+'%');}
 function cj(p){if(p<0.01||p>0.99)return '—';var o=p>=0.5?Math.round(-100*p/(1-p)):Math.round(100*(1-p)/p);return (o>0?'+':'')+o;}
 function pmf(mu,q){var n=q.length,a=new Array(91).fill(0);for(var i=0;i<n;i++){var x=Math.round(mu+q[i]);if(x<0)x=0;if(x>90)x=90;a[x]+=1/n;}return a;}
+function amer(v){v=parseFloat(String(v).replace(/[−–—]/g,'-').replace('+','').trim());return (isNaN(v)||Math.abs(v)<100)?NaN:v;}
+function imq(o){return o>0?100/(o+100):-o/(-o+100);}
+function dcm(o){return o>0?1+o/100:1+100/(-o);}
+function mon(x){return (x>=0?'+$':'−$')+Math.abs(x).toFixed(2);}
+function cuotas(b,ov,un,po,pun){
+ var out=b.querySelector('.pcv');if(!out)return;var o1=amer(b.querySelector('.pcqo').value),o2=amer(b.querySelector('.pcqu').value),h=[];
+ function lado(nom,o,p,win,lose){var q=imq(o),e=(p-q)*100,ev=(win*(dcm(o)-1)-lose)*100;
+  return '<div class="pcl"><b>'+nom+' '+(o>0?'+':'−')+Math.abs(o)+'</b>: el modelo da <b>'+pc(p)+'</b> y la cuota exige <b>'+pc(q)+'</b> → <b class="'+(e>=2?'cpos':(e<0?'cneg':''))+'">'+(e>=0?'+':'')+e.toFixed(1)+' pts</b> · ganancia esperada por $100 apostados: <b class="'+(ev>0?'cpos':'cneg')+'">'+mon(ev)+'</b></div>';}
+ if(!isNaN(o1))h.push(lado('OVER',o1,po,ov,un));
+ if(!isNaN(o2))h.push(lado('UNDER',o2,pun,un,ov));
+ if(!isNaN(o1)&&!isNaN(o2))h.push('<div class="pcl pcm">Margen de tu app en este mercado: '+((imq(o1)+imq(o2)-1)*100).toFixed(1)+' %</div>');
+ out.innerHTML=h.join('');}
 function calc(b){
  var card=b.closest('.pjuego'),v=card.dataset.mod||'B',k=b.dataset.k,mu=parseFloat(b.dataset.mu),L=parseFloat(b.querySelector('.plineain').value);
  var q=(QS[card.dataset.mod]||QS.B)[k],pm=pmf(mu,q),ov=0,pu=0,un=0,i;
- if(isNaN(L)){b.querySelector('.pnum').innerHTML='<span>escribe una línea</span>';return;}
+ if(isNaN(L)){b.querySelector('.pnum').innerHTML='<span>escribe una línea</span>';var cv0=b.querySelector('.pcv');if(cv0)cv0.innerHTML='';return;}
  for(i=0;i<pm.length;i++){if(i>L+1e-9)ov+=pm[i];else if(Math.abs(i-L)<1e-9)pu+=pm[i];else un+=pm[i];}
  var d=1-pu,po=d>0?ov/d:0.5,pun=d>0?un/d:0.5;
+ cuotas(b,ov,un,po,pun);
  b.querySelector('.pov').innerHTML='OVER <b>'+pc(ov)+'</b>';b.querySelector('.pun').innerHTML='UNDER <b>'+pc(un)+'</b>';
  b.querySelector('.ppu').innerHTML=pu>0.0005?'push '+pc(pu):'';
  b.querySelector('.pbar i').style.width=(po*100)+'%';
@@ -213,7 +230,7 @@ function calc(b){
  b.querySelector('.pdist').innerHTML=s.join('');b.querySelector('.pax0').textContent=x0;b.querySelector('.pax1').textContent=x0+n;
 }
 function todos(){document.querySelectorAll('#pgrid .pbl').forEach(calc);}
-document.addEventListener('input',function(e){var t=e.target;if(t.classList&&t.classList.contains('plineain'))calc(t.closest('.pbl'));});
+document.addEventListener('input',function(e){var t=e.target;if(t.classList&&(t.classList.contains('plineain')||t.classList.contains('pcq')))calc(t.closest('.pbl'));});
 document.addEventListener('click',function(e){var t=e.target,b=t.closest&&t.closest('.pbl');if(!b)return;var inp=b.querySelector('.plineain');
  if(t.classList.contains('pmas')){inp.value=(parseFloat(inp.value||b.dataset.l0)+1);calc(b);}
  else if(t.classList.contains('pmenos')){inp.value=(parseFloat(inp.value||b.dataset.l0)-1);calc(b);}
@@ -231,6 +248,9 @@ CSS = """
 input.plineain{width:80px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit;text-align:right}
 .plin button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:2px 9px;font:inherit;cursor:pointer}
 .pnota{font-size:.72rem;color:var(--ink2)}
+.pcuo{border-top:1px dashed var(--line);padding-top:6px}.pcuol{font-size:.82rem}
+input.pcq{width:68px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit;text-align:right}
+.pcv{font-size:.85rem;margin:2px 0 4px}.pcl{margin:2px 0}.pcm{color:var(--ink2);font-size:.78rem}.pcl .cpos{color:#1f9d4d}.pcl .cneg{color:#d33a30}
 .pbar{height:9px;border-radius:5px;background:#4a7fb5;overflow:hidden;margin:4px 0}.pbar i{display:block;height:9px;background:#d9822b}
 .pnum{display:flex;gap:14px;flex-wrap:wrap;font-size:.95rem}.ppu{color:var(--ink2)}
 .pcj{font-size:.78rem;color:var(--ink2);margin-top:2px}

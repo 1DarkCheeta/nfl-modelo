@@ -223,8 +223,9 @@ def armar(c: dict) -> str:
     como = (f'<details class="exp" id="puntos"><summary>Cómo funcionan el over/under, el clima y las combinadas</summary>{intro_pt}</details>' if intro_pt else "")
     n_al = sum(1 for d in js_ if any(b[0] == "w" for b in d["bd"]))
 
-    sub1 = _subnav([("sem-resumen", "Resumen", True), ("sem-vistazo", "Partidos de un vistazo", True), ("qb", "Mariscales", bool(c.get("sec_qb"))),
-                    ("movimientos", "Movimientos", bool(c.get("sec_mov"))), ("graficas", "Gráficas", True)])
+    it1 = [("sem-resumen", "Resumen", True), ("sem-vistazo", "Partidos de un vistazo", True), ("qb", "Mariscales", bool(c.get("sec_qb"))),
+           ("movimientos", "Movimientos", bool(c.get("sec_mov"))), ("graficas", "Gráficas", True)]
+    sub1 = _subnav(it1)
     t1 = (f'{sub1}<span id="sem-resumen"></span>{c["resumen"]}{c["importante"]}<span id="sem-vistazo"></span>{resumen_partidos(js_, nm)}'
           f'{c.get("sec_qb", "")}{c.get("sec_mov", "")}'
           f'<details class="sec" id="graficas"><span id="equipos"></span><summary>Gráficas de la semana: margen esperado, probabilidad de ganar y ventajas</summary>{c["graficas"]}</details>')
@@ -232,24 +233,31 @@ def armar(c: dict) -> str:
           '<p class="leyenda">Elige un partido y mira, en sub-pestañas: las apuestas contra el mercado, '
           'el over/under de puntos con tus propias líneas y las combinadas, los props y touchdowns de jugadores y el matchup.</p>'
           f'{como}{_selector(js_)}<div class="gpanels" id="pgrid">{paneles}</div>{pp.get("datos", "")}')
-    sub3 = _subnav([("explorador", "LINEA AC", bool(c.get("sec_jug"))), ("porequipo", "Equipo por equipo", bool(c.get("sec_eq"))), ("elo", "Elo", bool(c.get("sec_elo"))),
-                    ("td", "Touchdowns", bool(c.get("sec_td"))), ("casas", "Kalshi", bool(c.get("sec_casas"))), ("props", "Props destacados", bool(c.get("sec_top")))])
+    it3 = [("explorador", "LINEA AC", bool(c.get("sec_jug"))), ("porequipo", "Equipo por equipo", bool(c.get("sec_eq"))), ("elo", "Elo", bool(c.get("sec_elo"))),
+           ("td", "Touchdowns", bool(c.get("sec_td"))), ("casas", "Kalshi", bool(c.get("sec_casas"))), ("props", "Props destacados", bool(c.get("sec_top")))]
+    sub3 = _subnav(it3)
     t3 = sub3 + c.get("sec_jug", "") + c.get("sec_eq", "") + c.get("sec_elo", "") + c.get("sec_td", "") + c.get("sec_casas", "") + c.get("sec_top", "")
     if not (c.get("sec_eq") or c.get("sec_elo") or c.get("sec_jug") or c.get("sec_td") or c.get("sec_casas") or c.get("sec_top")):
         t3 = '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores y props (corre el programa completo).</div>'
-    sub4 = _subnav([("marcador", "Marcador", bool(c.get("sec_mc"))), ("confianza", "Confianza", bool(c.get("cred"))), ("fiab-props", "Props y TD", bool(c.get("sec_cal"))),
-                    ("historial", "Historial", True), ("ayuda", "Cómo leer", True)])
+    it4 = [("marcador", "Marcador", bool(c.get("sec_mc"))), ("confianza", "Confianza", bool(c.get("cred"))), ("fiab-props", "Props y TD", bool(c.get("sec_cal"))),
+           ("historial", "Historial", True), ("ayuda", "Cómo leer", True)]
+    sub4 = _subnav(it4)
     t4 = (sub4 + c.get("sec_mc", "") + (f'<div id="confianza">{c["cred"]}</div>' if c.get("cred") else "") + c.get("sec_cal", "") +
           f'<h2 id="historial">Cómo le fue en semanas anteriores</h2>{c["hist_html"]}'
           f'<h2 id="ayuda">Cómo leer este reporte</h2>{c["ayuda"]}')
     tabs = [("tab-semana", f"Esta semana", t1), ("tab-partidos", f"Partidos ({len(js_)})", t2), ("tab-jugadores", "Equipos y jugadores", t3), ("tab-calidad", "Calidad", t4)]
-    barra = "".join(f'<button type="button" class="tabbtn" data-t="{i}">{_esc(t)}</button>' for i, t, _ in tabs)
+    it2 = [("partidos", "Partido por partido", True), ("puntos", "Over/under, clima y combinadas (cómo funciona)", bool(intro_pt))]
+    grupos = [(tabs[0][1], it1), (tabs[1][1], it2), (tabs[2][1], it3), (tabs[3][1], it4)]
+    todo = "".join(f'<div class="am-g"><div class="am-t">{_esc(t)}</div>' + "".join(f'<a href="#{i}">{_esc(x)}</a>' for i, x, ok in its if ok) + "</div>" for t, its in grupos)
+    barra = ('<button type="button" class="menubtn" id="menubtn" aria-haspopup="true" aria-expanded="false" aria-controls="allmenu">☰ Todo</button>'
+             + "".join(f'<button type="button" class="tabbtn" data-t="{i}">{_esc(t)}</button>' for i, t, _ in tabs))
     cuerpo = "".join(f'<div class="tab" id="{i}">{_sin_numeros(h)}</div>' for i, _, h in tabs)
     return f"""<main>
 <script>document.documentElement.classList.add('js')</script>
 <header class="top"><h1 id="resumen">NFL · Temporada {c["cur"]}, semana {c["wk"]}</h1>
 <p class="sub">{c["sub"]} <span id="fresh" class="fresh" data-gen="{c["generado_iso"]}"></span></p></header>
 <nav class="tabs" id="tabs" role="tablist">{barra}</nav>
+<div id="allmenu" class="allmenu" hidden>{todo}</div>
 {cuerpo}
 <p class="foot">Datos: nflverse (play-by-play y líneas), ESPN, Ourlads, rbsdm, Kalshi y Open-Meteo. Los porcentajes salen de un modelo estadístico simple y no son garantía de nada.</p>
 <button type="button" id="arriba" class="arriba" title="Volver arriba" aria-label="Volver arriba">↑</button>
@@ -263,6 +271,12 @@ CSS = """
 .tabs::-webkit-scrollbar{display:none}
 .tabbtn{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 15px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
 .tabbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.menubtn{flex:0 0 auto;border:1px solid var(--blue);background:transparent;color:var(--blue);border-radius:999px;padding:8px 14px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+.menubtn[aria-expanded=true]{background:var(--blue);color:#fff}
+.allmenu{position:fixed;left:8px;right:8px;top:calc(var(--tabh,56px) + 4px);z-index:60;max-height:calc(100vh - var(--tabh,56px) - 20px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.35);padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 16px;max-width:900px;margin:0 auto}
+.allmenu[hidden]{display:none}
+.am-t{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);margin:2px 0 4px}
+.am-g a{display:block;padding:7px 10px;border-radius:8px;color:var(--ink);text-decoration:none;font-size:.92rem}.am-g a:hover,.am-g a:focus{background:var(--bg)}
 html.js .tab{display:none}html.js .tab.on{display:block}
 .subnav{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;position:sticky;top:var(--tabh,56px);z-index:35;background:var(--bg);padding:6px 0;margin:0 0 8px;border-bottom:1px solid var(--line)}.subnav::-webkit-scrollbar{display:none}.subnav a{flex:0 0 auto;white-space:nowrap}.tab [id]{scroll-margin-top:calc(var(--tabh,56px) + 54px)}.subnav a{font-size:.85rem;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 11px;color:var(--ink);text-decoration:none}
 .leyenda{color:var(--ink2);font-size:.85rem;margin:.2em 0 .8em}
@@ -331,8 +345,13 @@ document.addEventListener('click',function(e){var t=e.target;
  var gg=t.closest('[data-go]');if(gg){openGame(gg.dataset.go);return;}
  var sb=t.closest('.sbtn');if(sb){showSub(sb.closest('.gpanel'),sb.dataset.s);return;}
  var ga=t.closest('#gall');if(ga){var on=$('#pgrid').classList.toggle('todos');ga.classList.toggle('on',on);ga.textContent=on?'Mostrar uno':'Mostrar todos';return;}
+ var mb=t.closest('#menubtn'),am=$('#allmenu');
+ if(mb&&am){var ab=am.hidden;am.hidden=!ab;mb.setAttribute('aria-expanded',ab?'true':'false');altoTabs();return;}
+ if(am&&!am.hidden&&!t.closest('#allmenu')){am.hidden=true;var m2=$('#menubtn');if(m2)m2.setAttribute('aria-expanded','false');}
+ else if(am&&!am.hidden&&t.closest('#allmenu a')){am.hidden=true;var m3=$('#menubtn');if(m3)m3.setAttribute('aria-expanded','false');}
  if(t.closest('#arriba')){window.scrollTo({top:0,behavior:'smooth'});return;}
  var a=t.closest('a[href^="#"]');if(a&&a.getAttribute('href').length>1){var id=a.getAttribute('href').slice(1);if(document.getElementById(id)){e.preventDefault();go(id);}}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var am=$('#allmenu');if(am&&!am.hidden){am.hidden=true;var m=$('#menubtn');if(m){m.setAttribute('aria-expanded','false');m.focus();}}}});
 function fromHash(){var h=decodeURIComponent((location.hash||'').slice(1));if(!h)return false;
  if(h.indexOf('game=')===0){if(showGame(h.slice(5),true)){showTab('tab-partidos',true);return true;}return false;}
  if(h.indexOf('tab=')===0)return showTab('tab-'+h.slice(4),true);
