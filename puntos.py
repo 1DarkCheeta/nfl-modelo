@@ -21,6 +21,8 @@ import json
 import numpy as np
 import pandas as pd
 
+import clima as _clima
+
 NQ = 400
 Q = (np.arange(NQ) + 0.5) / NQ
 
@@ -59,6 +61,11 @@ def construir(r: dict, semanas: int = 2) -> dict | None:
         row = pend.loc[[x.Index]]
         t = float(final[f"t{v}"][0].predict(row[_feats(v, "t")])[0])
         m = float(final[f"m{v}"][0].predict(row[_feats(v, "m")])[0])
+        dw = 0.0                                   # cuanto mueve el viento pronosticado al total esperado
+        if "wind_eff" in row.columns and float(row.wind_eff.iloc[0]) != 0.0:
+            r0 = row.copy()
+            r0["wind_eff"] = 0.0
+            dw = t - float(final[f"t{v}"][0].predict(r0[_feats(v, "t")])[0])
         mh, ma = (t + m) / 2, (t - m) / 2
         if con_linea:
             lt = float(x.total_line)
@@ -67,7 +74,8 @@ def construir(r: dict, semanas: int = 2) -> dict | None:
             lt, lh, la = _redondea(t), _redondea(mh), _redondea(ma)
         juegos.append({"id": x.game_id, "sem": int(x.week), "fecha": pd.Timestamp(x.gameday).strftime("%d/%m"), "away": x.away_team,
                        "home": x.home_team, "mod": v, "t": round(t, 1), "h": round(mh, 1), "a": round(ma, 1),
-                       "lt": lt, "lh": lh, "la": la, "mercado": bool(con_linea)})
+                       "lt": lt, "lh": lh, "la": la, "mercado": bool(con_linea),
+                       "clima": (r.get("clima") or {}).get(x.game_id), "dw": round(dw, 1)})
     return {"juegos": juegos, "q": _cuantiles(oos), "cur": cur}
 
 
@@ -100,9 +108,15 @@ def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
         else:
             nota_t = nota_h = "aún sin línea: punto de partida = lo que espera el modelo"
             aviso = '<p class="pav">Este partido todavía no tiene línea del mercado: usa el modelo A (solo ratings propios, sin mercado), que se equivoca más. Úsalo como referencia.</p>'
+        chips, nota_w = _clima.etiquetas(g.get("clima"))
+        wx = f'<div class="pwx">{chips}</div>' if chips else ""
+        if nota_w:
+            wx += f'<p class="pwn">{html.escape(nota_w)}</p>'
+        if abs(g.get("dw", 0)) >= 0.3:
+            wx += f'<p class="pwn">El modelo ya incluye el viento: mueve el total esperado {g["dw"]:+.1f} pts.</p>'
         cards.append(
             f'<div class="eqcard pjuego" data-k="{g["id"]}"><h3>{html.escape(nombre(g["away"]))} @ {html.escape(nombre(g["home"]))} '
-            f'<small>semana {g["sem"]} · {g["fecha"]}</small></h3>{aviso}'
+            f'<small>semana {g["sem"]} · {g["fecha"]}</small></h3>{wx}{aviso}'
             + _bloque("t", "Total del partido", g["t"], g["lt"], nota_t)
             + _bloque("h", f"Puntos de {nombre(g['home'])} (local)", g["h"], g["lh"], nota_h)
             + _bloque("a", f"Puntos de {nombre(g['away'])} (visita)", g["a"], g["la"], nota_h) + "</div>")
@@ -113,6 +127,8 @@ def html_puntos(PT: dict | None, nombre=lambda t: t) -> str:
 <p class="explain"><b>Cómo leerlo:</b> «cuota justa» es la cuota que dejaría el negocio parejo con esa probabilidad; con cuota −110 hace falta acertar 52.4 % para no perder. En el historial (2013-2026) el modelo
 <b>no le gana a la línea del mercado</b>: cerca de la línea sus probabilidades rondan 50 %, y eso es lo normal. Donde sí sirve es para lo que el mercado <b>no te muestra</b>: qué tan probable es una línea distinta, o un total por equipo.
 Las probabilidades de líneas lejanas (±14 puntos del esperado) coincidieron con la frecuencia real con un error típico de 1-2 puntos porcentuales.</p>
+<p class="explain"><b>Clima:</b> debajo del nombre de cada partido está el pronóstico del estadio para la hora del juego (Open-Meteo; se vuelve a bajar en cada corrida, así que es más confiable mientras más cerca esté el partido). El modelo de totales ya usa el viento y el techo. En el historial (2013-2026), con
+viento de 15 mph o más el total real quedó en promedio <b>1.5 pts por debajo de la línea</b> (417 partidos, unos 2 errores estándar), pero apostar a eso no dio una ventaja confirmada. Con techo cerrado el clima no afecta.</p>
 <div class="eqgrid" id="pgrid">{''.join(cards)}</div>
 <script id="pq" type="application/json">{q}</script>"""
 
@@ -170,3 +186,4 @@ svg.pdist{width:100%;height:64px;margin-top:4px;display:block}
 .pax{display:flex;justify-content:space-between;font-size:.7rem;color:var(--ink2)}
 .pav{font-size:.8rem;color:var(--ink2);background:rgba(217,130,43,.12);border-radius:8px;padding:6px 8px;margin:4px 0}
 """
+CSS = CSS + _clima.CSS

@@ -34,6 +34,7 @@ FUENTES = [  # (tabla en la base de datos, nombre que se muestra, de donde viene
     ("rbsdm_team_tiers", "EPA, éxito y tendencias por equipo", "rbsdm"),
     ("snaps", "Jugadas por jugador (snaps)", "nflverse"),
     ("lineas_kalshi", "Líneas de props", "Kalshi"),
+    ("clima_pronostico", "Pronóstico del clima por estadio", "Open-Meteo"),
 ]
 
 

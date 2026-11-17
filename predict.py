@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -46,6 +47,17 @@ def compute(refresh: bool = True, week: int | None = None, show_all: bool = Fals
 
     cfg_path = ROOT / "config.json"
     cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {"k": 0.05, "shrink": 0.5}
+    # clima: pronostico del dia de cada partido pendiente (Open-Meteo). Se le da al modelo de totales (viento y techo).
+    usar_clima = cfg.pop("clima_en_modelo", True)
+    clima_info = {}
+    if not os.environ.get("NFL_SIN_CLIMA"):
+        try:
+            import clima as CL
+            clima_info = CL.obtener(games)
+            if usar_clima and clima_info:
+                games = CL.preparar_modelo(games, clima_info)
+        except Exception as ex:
+            print(f"  [aviso] no pude armar el clima ({ex}); el modelo sigue sin pronóstico")
     df, state = build_dataset(games, tg, return_state=True, **cfg)
 
     # Calibracion (Platt) con TODAS las predicciones fuera de muestra disponibles
@@ -60,7 +72,7 @@ def compute(refresh: bool = True, week: int | None = None, show_all: bool = Fals
 
     pend = df[df.result.isna() & df.spread_line.notna() & df.total_line.notna() & (df.season == cur)].copy()
     if pend.empty:
-        return {"res": pend, "oos": oos, "cur": cur, "week": None, "min_edge": min_edge, "games": games, "state": state, "df": df, "final": final}
+        return {"res": pend, "oos": oos, "cur": cur, "week": None, "min_edge": min_edge, "games": games, "state": state, "df": df, "final": final, "clima": clima_info}
     if not show_all:
         wk = week if week else int(pend.week.min())
         pend = pend[pend.week == wk]
@@ -108,7 +120,7 @@ def compute(refresh: bool = True, week: int | None = None, show_all: bool = Fals
     res["margen_mercado"] = res.spread_line
     res["linea_local"] = -res.spread_line
     res["min_edge"] = min_edge
-    return {"res": res, "oos": oos, "cur": cur, "week": wk, "min_edge": min_edge, "games": games, "state": state, "df": df, "final": final}
+    return {"res": res, "oos": oos, "cur": cur, "week": wk, "min_edge": min_edge, "games": games, "state": state, "df": df, "final": final, "clima": clima_info}
 
 
 def veredicto(edge, lado, min_edge, tiene=True) -> str:

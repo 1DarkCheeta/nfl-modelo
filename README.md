@@ -295,3 +295,15 @@ Archivo `marcador.py`. En el reporte aparece la sección **«Marcador»** (enlac
 **La carpeta `semilla/`** trae las predicciones y líneas guardadas en la laptop antes de pasar el modelo a la nube (`predicciones_modelo.csv`, `lineas_historial.csv`); `marcador.py` las suma a lo guardado (sin duplicar) para que la página arranque con esos partidos. Si no quieres usarlas, bórrala.
 
 **Cómo leerlo.** Con pocos partidos todo es ruido: para confirmar una ventaja de 2-3 puntos sobre el punto de equilibrio (52.4 % con cuota −110) hacen falta más de 1,000 apuestas. El CLV es la señal más rápida. Todavía no califica las proyecciones de jugadores (props).
+
+---
+
+## Clima de cada partido
+
+Archivo `clima.py`. En la sección de puntos, debajo del nombre de cada partido, aparece el **pronóstico del estadio para la hora del juego**: temperatura (°C y °F), viento y ráfagas (mph), probabilidad de lluvia o nieve y tipo de clima, con alertas en naranja para viento fuerte (≥ 15 mph), frío (≤ 32 °F) y lluvia probable (≥ 50 %). Con techo cerrado se indica que el clima no afecta; si el techo es retráctil se usa cuántas veces ese estadio se jugó cerrado.
+
+**De dónde sale.** Open-Meteo (gratis, sin llave): se baja el pronóstico por hora de cada estadio (coordenadas de los 32 equipos y de las sedes internacionales) y se resume la ventana del juego (kickoff + 3 horas). Se actualiza en cada corrida, así que es más confiable mientras más cerca esté el partido; a más de ~5 días solo es una idea (la página lo avisa). Cada pronóstico se guarda en la tabla `clima_pronostico` para medir después qué tan bien acertó. Sin internet se usa la última foto guardada (con aviso) y, si no hay, el modelo sigue como antes.
+
+**Qué hace con el modelo.** El modelo de totales ya usaba viento y techo, pero en los partidos pendientes el viento llegaba vacío (= 0). Ahora recibe el pronóstico (topado en 20 mph) y la tarjeta muestra cuánto mueve el total esperado. Para desactivarlo: `"clima_en_modelo": false` en `config.json`; para no bajar el clima: variable de entorno `NFL_SIN_CLIMA=1`.
+
+**Qué esperar (backtest 2013-2026 con el clima REAL de cada juego, mejor que cualquier pronóstico).** Agregar temperatura y viento **no mejora la precisión** del modelo de totales frente a la línea del mercado: el mercado ya los descuenta. Con viento ≥ 15 mph el total real quedó en promedio 1.5 pts bajo la línea (417 partidos, ~2 errores estándar) y apostar el under en esos juegos (sesgo estimado solo con años previos) dio 55 % de acierto y +7.5 % de ROI en 267 apuestas, que con el azar de ±16 unidades no confirma una ventaja. En estadios con techo los totales salieron ~1.3 pts sobre la línea, pero apostar el over ahí no dio ventaja (51 %). Es información útil para entender un partido, no una señal de apuesta probada.
