@@ -279,3 +279,18 @@ Archivo `puntos.py`. En el reporte aparece la sección **«Over / under de punto
 **De dónde salen los números.** El modelo de totales (tB) y el de margen (mB) dan el total y la diferencia esperados; local = (total + margen) / 2 y visita = (total − margen) / 2. Si un partido aún no tiene línea del mercado se usan los modelos A (sin mercado) y el reporte lo avisa. Las líneas iniciales de cada equipo son las implícitas del mercado: (total ± spread) / 2. La incertidumbre sale de los errores reales que tuvo el modelo fuera de muestra desde 2008 (400 percentiles por tipo de error), con los puntos tratados como números enteros.
 
 **Qué tan confiable es.** Probado con el modelo ajustado solo con temporadas previas (2013-2026) y con líneas desplazadas de −14 a +14 puntos del esperado: las probabilidades coincidieron con la frecuencia real con un error típico de 1-2 puntos porcentuales (total y por equipo). **Contra la línea del mercado el modelo no tiene ventaja**: ahí sus probabilidades rondan 50 %, igual que una moneda (log-loss 0.693). Sirve para estimar líneas que el mercado no publica (otro total, el total de un equipo). Limitación: el historial no trae líneas de total por equipo del mercado, así que ese caso se validó con las líneas implícitas.
+
+---
+
+## Marcador: ¿el modelo gana de verdad?
+
+Archivo `marcador.py`. En el reporte aparece la sección **«Marcador»** (enlace arriba, antes de «Historial»). Califica las predicciones que el modelo guardó en la base de datos (`predicciones_modelo` y `lineas_historial`) contra lo que realmente pasó:
+
+- Solo cuenta la **última predicción hecha antes del kickoff** de cada partido (se compara la hora de la predicción con la hora del partido), así nunca se califica algo hecho con el resultado a la vista.
+- Para **ganador, spread y total**: acierto del lado que favorece el modelo (con intervalo del 95 %), unidades ganadas o perdidas con 1 unidad por apuesta y la cuota real (a todos los partidos y solo a los «posibles valores»), log-loss frente al mercado, calibración, error medio en puntos (modelo A, modelo B y la línea del mercado) y **CLV** (si la línea de cierre se movió hacia el lado que eligió el modelo).
+- Gráfica de unidades acumuladas, lista de los últimos partidos calificados y una **referencia del historial fuera de muestra (2013-2026)** para comparar.
+- Una línea «Para no engañarnos» con lo que habría pasado apostando siempre al mismo lado (local, visita u over).
+
+**La carpeta `semilla/`** trae las predicciones y líneas guardadas en la laptop antes de pasar el modelo a la nube (`predicciones_modelo.csv`, `lineas_historial.csv`); `marcador.py` las suma a lo guardado (sin duplicar) para que la página arranque con esos partidos. Si no quieres usarlas, bórrala.
+
+**Cómo leerlo.** Con pocos partidos todo es ruido: para confirmar una ventaja de 2-3 puntos sobre el punto de equilibrio (52.4 % con cuota −110) hacen falta más de 1,000 apuestas. El CLV es la señal más rápida. Todavía no califica las proyecciones de jugadores (props).

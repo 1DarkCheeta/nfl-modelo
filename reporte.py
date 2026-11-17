@@ -372,6 +372,18 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         nav_pt = '<a href="#puntos">Puntos</a>' if sec_pt else ""
     except Exception as ex:
         print(f"  [aviso] no pude armar el over/under de puntos ({ex})")
+    sec_mc, nav_mc = "", ""
+    try:                                       # marcador: califica las predicciones guardadas contra lo que paso
+        import marcador as MC
+        import sqlite3
+        _con = sqlite3.connect(Path(__file__).resolve().parent / "data" / "nfl.db")
+        try:
+            sec_mc = MC.html_marcador(MC.calcular(_con, games=r.get("games"), oos=r.get("oos")), nm)
+        finally:
+            _con.close()
+        nav_mc = '<a href="#marcador">Marcador</a>' if sec_mc else ""
+    except Exception as ex:
+        print(f"  [aviso] no pude armar el marcador ({ex})")
     if extras:
         import reporte_extra as RE
         import por_equipo as PE
@@ -400,7 +412,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         nav_extra = ('<a href="#porequipo">Por equipo</a>' if sec_eq else '') + ('<a href="#elo">Elo</a>' if sec_elo else '') + '<a href="#td">Touchdowns</a><a href="#casas">Kalshi</a><a href="#props">Props</a>'
     cards = "".join(_card(x, me, ex_html.get(x.game_id, "")) for _, x in res.iterrows())
     body = f"""<main>
-<nav class="nav"><a href="#resumen">Resumen</a><a href="#equipos">Equipos</a>{nav_pt}{nav_extra}<a href="#partidos">Partidos</a><a href="#historial">Historial</a></nav>
+<nav class="nav"><a href="#resumen">Resumen</a><a href="#equipos">Equipos</a>{nav_pt}{nav_extra}<a href="#partidos">Partidos</a>{nav_mc}<a href="#historial">Historial</a></nav>
 <h1 id="resumen">NFL · Temporada {cur}, semana {wk}</h1>
 <p class="sub">{n} partidos pendientes con línea publicada · generado el {datetime.now():%d/%m/%Y %H:%M}</p>
 {resumen}
@@ -432,6 +444,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
 {cards}
 {cred}
 {sec_cal}
+{sec_mc}
 <h2 id="historial">Cómo le fue en semanas anteriores</h2>
 {hist_html}
 <p class="foot">Datos: nflverse (play-by-play y líneas). Los porcentajes salen de un modelo estadístico simple y no son garantía de nada.</p>
@@ -446,6 +459,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         import por_equipo as PE
         CSS_X += ("" if extras else PE.CSS) + PT.CSS
         JS_X += PT.JS
+    if sec_mc:
+        CSS_X += MC.CSS
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
     ruta = ruta or REPORTES / f"reporte_{cur}_semana{wk:02d}.html"
     ruta.write_text(doc, encoding="utf-8")
