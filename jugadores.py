@@ -22,8 +22,16 @@ MERCADOS = [
     ("pass_yds", "Yardas de pase", "Yardas"), ("pass_td", "TDs de pase", "TDs"), ("rush_yds", "Yardas por tierra", "Yardas"),
     ("rush_att", "Acarreos", "Acarreos"), ("rec", "Recepciones", "Recepciones"), ("rec_yds", "Yardas por recepción", "Yardas"),
     ("td", "TD en cualquier momento", "TDs"), ("pass_cmp", "Pases completos", "Pases"), ("pass_int", "Intercepciones lanzadas", "INT"),
-    ("tgt", "Objetivos (targets)", "Targets"),
+    ("tgt", "Objetivos (targets)", "Targets"), ("pass_att", "Intentos de pase", "Pases"), ("rush_td", "TDs por tierra", "TDs"),
+    ("rec_td", "TDs por recepción", "TDs"), ("rush_rec_yds", "Yardas por tierra + recepción", "Yardas"),
 ]
+# estadisticas que tienen sentido por posicion (el selector de «Estadística» solo muestra estas)
+MKPOS = {
+    "QB": ["pass_yds", "pass_att", "pass_cmp", "pass_td", "pass_int", "rush_yds", "rush_att", "td"],
+    "RB": ["rush_yds", "rush_att", "rec", "rec_yds", "rush_rec_yds", "tgt", "td", "rush_td", "rec_td"],
+    "WR": ["rec_yds", "rec", "tgt", "td", "rec_td", "rush_yds", "rush_att"],
+    "TE": ["rec_yds", "rec", "tgt", "td", "rec_td"],
+}
 DEFECTO = {"QB": "pass_yds", "RB": "rush_yds", "WR": "rec_yds", "TE": "rec_yds"}
 POS = ("QB", "RB", "WR", "TE")
 TITULARES = {"QB": 1, "RB": 1, "WR": 3, "TE": 1}
@@ -32,7 +40,8 @@ ESTADO_ES = {"Questionable": "Cuestionable", "Doubtful": "Dudoso", "Out": "Fuera
 
 def _valores(pw: pd.DataFrame) -> pd.DataFrame:
     d = pw.copy()
-    d["pass_cmp"], d["rush_att"] = d["cmp"], d["car"]
+    d["pass_cmp"], d["rush_att"], d["pass_att"] = d["cmp"], d["car"], d["att"]
+    d["rush_rec_yds"] = d["rush_yds"].fillna(0) + d["rec_yds"].fillna(0)
     d["td"] = d["rush_td"].fillna(0) + d["rec_td"].fillna(0)
     return d
 
@@ -141,7 +150,7 @@ def construir(r: dict, extras: dict, nm=lambda t: t) -> dict | None:
 
     equipos = sorted({t for s in juegos.values() for t in s})
     ult = {s: int(pw[pw.season == s].week.max()) for s in seasons}
-    return {"cur": cur, "seasons": seasons, "ult": ult, "mk": [list(m) for m in MERCADOS], "def": DEFECTO,
+    return {"cur": cur, "seasons": seasons, "ult": ult, "mk": [list(m) for m in MERCADOS], "def": DEFECTO, "mp": MKPOS,
             "teams": {t: nm(t) for t in equipos}, "pl": jug, "w": semanal, "g": juegos, "pr": pr}
 
 
@@ -152,10 +161,11 @@ def _json(d) -> str:
 def html_jugadores(d: dict | None) -> str:
     if not d:
         return ""
-    return f"""<h2 id="explorador">Explorador de jugadores (los 32 equipos)</h2>
-<p class="explain">Elige un equipo, una posición y un jugador (titular, banca o lesionado) y mira semana a semana si <b>cubrió la línea</b>: Hit Rate, récord,
-gráfica con la línea encima y filtro de local o visitante. La línea parte de la «normal» del modelo (o del promedio de la temporada si el jugador no tiene proyección);
-<b>escribe la tuya</b> y todo se recalcula. Over cubre si el resultado real supera la línea; Under, si queda por debajo; un empate (push) no cuenta.
+    return f"""<h2 id="explorador">LINEA AC</h2>
+<p class="explain"><b>LINEA AC</b> = ¿cubrió la línea? Elige en orden: <b>temporada → equipo → posición → jugador → estadística</b> (yardas de pase, intentos de pase,
+pases completos, TDs, intercepciones, acarreos, yardas por tierra, recepciones, yardas por recepción, targets…; la lista cambia según la posición) y mira semana a semana si
+<b>cubrió la línea</b>: Hit Rate, récord, gráfica con la línea encima y filtro de local o visitante. La línea parte de la «normal» del modelo (o del promedio de la temporada si
+el jugador no tiene proyección); <b>escribe la tuya</b> y todo se recalcula. Over cubre si el resultado real supera la línea; Under, si queda por debajo; un empate (push) no cuenta.
 Hit Rate = cubrió ÷ (cubrió + no cubrió).</p>
 <div class="jx" id="jx">
 <div class="jx-ctl">
@@ -266,7 +276,7 @@ function fillPlayers(keep){var t=$('jx-team').value,ps=$('jx-pos').value,L=D.pl.
  if(!t)L=L.slice().sort(function(a,b){return a[1]<b[1]?-1:1;});
  $('jx-n').textContent='('+L.length+' disponible'+(L.length===1?'':'s')+')';
  $('jx-pl').innerHTML=L.length?L.map(function(p){return opt(p[0],plLabel(p,!t),p[0]===keep);}).join(''):opt('','Sin jugadores con esos filtros');}
-function fillMk(){var p=PL[$('jx-pl').value],cur=$('jx-mk').value;$('jx-mk').innerHTML=D.mk.map(function(m){return opt(m[0],m[1],false);}).join('');
+function fillMk(){var p=PL[$('jx-pl').value],cur=$('jx-mk').value,ok=p&&D.mp[p[2]]?D.mp[p[2]]:MKL;$('jx-mk').innerHTML=ok.map(function(k){return opt(k,MK[k][1],false);}).join('');
  $('jx-mk').value=(cur&&p&&$('jx-mk').dataset.pid===p[0])?cur:((p&&D.def[p[2]])||'pass_yds');$('jx-mk').dataset.pid=p?p[0]:'';}
 function sedeV(){var r=document.querySelector('input[name=jx-sede]:checked');return r?r.value:'';}
 function ladoV(){var r=document.querySelector('input[name=jx-lado]:checked');return r?r.value:'over';}
