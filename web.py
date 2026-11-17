@@ -223,7 +223,9 @@ def armar(c: dict) -> str:
     como = (f'<details class="exp" id="puntos"><summary>Cómo funcionan el over/under, el clima y las combinadas</summary>{intro_pt}</details>' if intro_pt else "")
     n_al = sum(1 for d in js_ if any(b[0] == "w" for b in d["bd"]))
 
-    t1 = (f'{c["resumen"]}{c["importante"]}{resumen_partidos(js_, nm)}'
+    sub1 = _subnav([("sem-resumen", "Resumen", True), ("sem-vistazo", "Partidos de un vistazo", True), ("qb", "Mariscales", bool(c.get("sec_qb"))),
+                    ("movimientos", "Movimientos", bool(c.get("sec_mov"))), ("graficas", "Gráficas", True)])
+    t1 = (f'{sub1}<span id="sem-resumen"></span>{c["resumen"]}{c["importante"]}<span id="sem-vistazo"></span>{resumen_partidos(js_, nm)}'
           f'{c.get("sec_qb", "")}{c.get("sec_mov", "")}'
           f'<details class="sec" id="graficas"><span id="equipos"></span><summary>Gráficas de la semana: margen esperado, probabilidad de ganar y ventajas</summary>{c["graficas"]}</details>')
     t2 = ('<h2 id="partidos">Partido por partido</h2>'
@@ -262,7 +264,7 @@ CSS = """
 .tabbtn{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 15px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
 .tabbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
 html.js .tab{display:none}html.js .tab.on{display:block}
-.subnav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 6px}.subnav a{font-size:.85rem;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 11px;color:var(--ink);text-decoration:none}
+.subnav{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;position:sticky;top:var(--tabh,56px);z-index:35;background:var(--bg);padding:6px 0;margin:0 0 8px;border-bottom:1px solid var(--line)}.subnav::-webkit-scrollbar{display:none}.subnav a{flex:0 0 auto;white-space:nowrap}.tab [id]{scroll-margin-top:calc(var(--tabh,56px) + 54px)}.subnav a{font-size:.85rem;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 11px;color:var(--ink);text-decoration:none}
 .leyenda{color:var(--ink2);font-size:.85rem;margin:.2em 0 .8em}
 .grows{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
 .grow{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:5px}
