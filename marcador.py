@@ -137,7 +137,46 @@ def tabla_juegos(P: pd.DataFrame, L: pd.DataFrame, games: pd.DataFrame) -> tuple
     pend = int(t.result.isna().sum())
     t = t[t.result.notna()].copy()
     t["gameday"] = pd.to_datetime(t.gameday)
+    t["origen"] = "en vivo"
     return t.sort_values(["gameday", "game_id"]).reset_index(drop=True), pend
+
+
+def _lado(p_a, odds_a, odds_b):
+    ia, ib = _implied(odds_a), _implied(odds_b)
+    ea, eb = p_a - ia, (1 - p_a) - ib
+    a = ea >= eb
+    return np.where(a, ea, eb), a
+
+
+def reconstruidas(oos: pd.DataFrame | None, games: pd.DataFrame, cur: int, excluir=()) -> pd.DataFrame:
+    """Partidos de la temporada actual que se jugaron ANTES de que el modelo empezara a guardar sus predicciones.
+
+    Se usan las predicciones fuera de muestra (walk-forward): modelo entrenado solo con temporadas anteriores y ratings de
+    cada equipo calculados solo con lo ocurrido antes de ese partido. No tienen linea al momento de la prediccion
+    (se usa la de cierre), asi que no hay CLV para ellas."""
+    if oos is None or oos.empty:
+        return pd.DataFrame()
+    d = oos[(oos.season == cur) & oos.result.notna() & ~oos.game_id.isin(list(excluir))].copy()
+    if d.empty:
+        return pd.DataFrame()
+    col = lambda b: f"{b}_B_cal" if f"{b}_B_cal" in d.columns else f"{b}_B"
+    d["p_gana_local"], d["p_cubre_local"], d["p_over"] = d[col("pwin")], d[col("pcov")], d[col("pover")]
+    d = d.merge(games[["game_id", "home_score", "away_score"]], on="game_id", how="left")
+    for c in ("spread_line", "total_line", "home_moneyline", "away_moneyline"):
+        d[f"{c}_cierre"] = np.nan                                  # sin foto de la linea de ese momento: sin CLV
+    ho, ao = d.home_spread_odds.fillna(PUSH_ODDS).values, d.away_spread_odds.fillna(PUSH_ODDS).values
+    d["sp_edge"], a = _lado(d.p_cubre_local.values, ho, ao)
+    d["sp_lado"] = np.where(a, d.home_team, d.away_team)
+    ov, un = d.over_odds.fillna(PUSH_ODDS).values, d.under_odds.fillna(PUSH_ODDS).values
+    d["to_edge"], a = _lado(d.p_over.values, ov, un)
+    d["to_lado"] = np.where(a, "OVER", "UNDER")
+    has = d.home_moneyline.notna() & d.away_moneyline.notna()
+    e, a = _lado(d.p_gana_local.values, d.home_moneyline.fillna(-110).values, d.away_moneyline.fillna(-110).values)
+    d["ml_edge"] = np.where(has, e, np.nan)
+    d["ml_lado"] = np.where(a, d.home_team + " ML", d.away_team + " ML")
+    d["gameday"] = pd.to_datetime(d.gameday)
+    d["origen"] = "reconstruida"
+    return d
 
 
 # ------------------------------------------------------------------------------------------ calificacion
@@ -167,7 +206,7 @@ def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
                 if pd.isna(r.p_cubre_local) or pd.isna(r.spread_line):
                     continue
                 s = r.spread_line
-                home = r.p_cubre_local >= 0.5
+                home = (r.pred_mB > s) if (pd.notna(getattr(r, "pred_mB", np.nan)) and r.pred_mB != s) else r.p_cubre_local >= 0.5
                 edge = getattr(r, "sp_edge", np.nan)
                 valor = pd.notna(edge) and edge >= umbral
                 if valor and isinstance(r.sp_lado, str):
@@ -184,7 +223,7 @@ def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
                 if pd.isna(r.p_over) or pd.isna(r.total_line):
                     continue
                 tl = r.total_line
-                over = r.p_over >= 0.5
+                over = (r.pred_tB > tl) if (pd.notna(getattr(r, "pred_tB", np.nan)) and r.pred_tB != tl) else r.p_over >= 0.5
                 edge = getattr(r, "to_edge", np.nan)
                 valor = pd.notna(edge) and edge >= umbral
                 if valor and isinstance(r.to_lado, str):
@@ -253,6 +292,21 @@ def calificar(t: pd.DataFrame, umbral: float = UMBRAL) -> dict:
         pr["total"] = {"n": len(o), "ll": _ll(o.p_over, y), "br": _brier(o.p_over, y), "ll_mk": float(np.log(2)),
                        "br_mk": 0.25, "cal": _calibracion(o.p_over.values, y)}
     out["prob"] = pr
+    # --- ¿acierta mas cuando discrepa mas de la linea?
+    dis = {}
+    for mk, pc, lc, ycol in (("spread", "pred_mB", "spread_line", "result"), ("total", "pred_tB", "total_line", "total")):
+        x = t[t[pc].notna() & t[lc].notna() & (t[ycol] != t[lc]) & (t[pc] != t[lc])].copy()
+        if x.empty:
+            continue
+        gap = (x[pc] - x[lc]).abs()
+        hit = ((x[pc] > x[lc]) == (x[ycol] > x[lc]))
+        filas = []
+        for a, b_, nom in ((0, 1, "menos de 1 pt"), (1, 2, "1 a 2 pts"), (2, 3, "2 a 3 pts"), (3, 99, "3 pts o más")):
+            m = (gap >= a) & (gap < b_)
+            if m.sum():
+                filas.append({"rango": nom, "n": int(m.sum()), "acierto": float(hit[m].mean())})
+        dis[mk] = filas
+    out["discrep"] = dis
     # --- error en puntos
     mae = {}
     m = t[t.spread_line.notna()]
@@ -284,6 +338,30 @@ def calificar(t: pd.DataFrame, umbral: float = UMBRAL) -> dict:
     v = b[b.valor]
     out["valor"] = {mk: _resumen(v[v.mercado == mk]) for mk in ("ganador", "spread", "total") if (v.mercado == mk).any()}
     out["valor_total"] = _resumen(v) if len(v) else None
+    # semana por semana y por origen (en vivo / reconstruida)
+    wk = t.set_index("game_id")[["week", "origen"]]
+    bb = b.join(wk, on="game_id")
+    filas = []
+    for k, x in bb.groupby("week"):
+        row = {"semana": int(k), "partidos": int(x.game_id.nunique())}
+        for mk in ("ganador", "spread", "total"):
+            y = x[(x.mercado == mk) & ~x.push]
+            row[mk] = float(y.gana.mean()) if len(y) else np.nan
+        row["unid"] = float(x.unid.sum())
+        row["unid_valor"] = float(x[x.valor].unid.sum())
+        row["n_valor"] = int(x.valor.sum())
+        row["en_vivo"] = int((t[t.week == k].origen == "en vivo").sum())
+        filas.append(row)
+    out["semanas"] = pd.DataFrame(filas)
+    po = {}
+    for k, x in bb.groupby("origen"):
+        y = {"partidos": int(x.game_id.nunique()), "unid": float(x.unid.sum()), "unid_valor": float(x[x.valor].unid.sum()),
+             "n_valor": int(x.valor.sum())}
+        for mk in ("ganador", "spread", "total"):
+            z = x[(x.mercado == mk) & ~x.push]
+            y[mk] = float(z.gana.mean()) if len(z) else np.nan
+        po[k] = y
+    out["origen"] = po
     out["todas_total"] = _resumen(b) if len(b) else None
     return out
 
@@ -342,6 +420,10 @@ def calcular(con: sqlite3.Connection, games: pd.DataFrame | None = None, oos: pd
              umbral: float = UMBRAL, semilla: Path = SEMILLA) -> dict | None:
     P, L, G = cargar(con, games, semilla)
     t, pend = tabla_juegos(P, L, G)
+    cur = int(G.loc[G.result.notna(), "season"].max()) if G.result.notna().any() else None
+    rec = reconstruidas(oos, G, cur, excluir=set(t.game_id) if len(t) else ()) if cur is not None else pd.DataFrame()
+    if len(rec):
+        t = pd.concat([t, rec], ignore_index=True, sort=False).sort_values(["gameday", "game_id"]).reset_index(drop=True)
     res = calificar(t, umbral)
     res["pendientes"] = pend
     res["tabla"] = t
@@ -412,9 +494,23 @@ def _fila_mercado(mk: str, res: dict) -> str:
             f"<td>{_un(a['unid'])} u<br><small>ROI {a['roi'] * 100:+.1f} %</small></td><td>{val}</td><td>{llm}</td><td>{clv}</td></tr>")
 
 
+def _dis_html(res: dict) -> str:
+    bl = []
+    for mk, ttl in (("spread", "Spread"), ("total", "Total")):
+        f = res.get("discrep", {}).get(mk)
+        if not f:
+            continue
+        filas = "".join(f"<tr><td>{c['rango']}</td><td>{c['n']}</td><td>{_pc(c['acierto'])}</td></tr>" for c in f)
+        bl.append(f"<div><h4>{ttl}: acierto según cuánto se aleja el modelo de la línea</h4><table><thead><tr><th>Diferencia modelo vs línea</th><th>Partidos</th><th>Acierto</th></tr></thead><tbody>{filas}</tbody></table></div>")
+    if not bl:
+        return ""
+    return (f'<div class="grid2" style="margin-top:1em">{"".join(bl)}</div>'
+            '<p class="explain">Si el modelo supiera algo que el mercado no, el acierto debería subir cuando se aleja más de la línea. Si es plano o baja, esa diferencia es ruido.</p>')
+
+
 def _cal_html(res: dict) -> str:
     bloques = []
-    for mk in ("ganador", "spread", "total"):
+    for mk in ("ganador",):
         pr = res["prob"].get(mk)
         if not pr or not pr["cal"]:
             continue
@@ -481,25 +577,53 @@ def _mae_html(res: dict) -> str:
             '<p class="explain">Si el modelo B no baja del error de la línea, no está viendo nada que el mercado no vea.</p>')
 
 
+def _semanas_html(res: dict) -> str:
+    w = res.get("semanas")
+    if w is None or w.empty:
+        return ""
+    filas = []
+    for r in w.itertuples():
+        filas.append(f"<tr><td><b>{r.semana}</b></td><td>{r.partidos}</td><td>{_pc(r.ganador)}</td><td>{_pc(r.spread)}</td><td>{_pc(r.total)}</td>"
+                     f"<td>{_un(r.unid)} u</td><td>{r.n_valor} · {_un(r.unid_valor)} u</td>"
+                     f"<td>{'en vivo' if r.en_vivo == r.partidos else ('reconstruida' if r.en_vivo == 0 else 'mixta')}</td></tr>")
+    po = res.get("origen", {})
+    ori = ""
+    if len(po) > 1:
+        nom = {"en vivo": "Guardadas antes del partido (en vivo)", "reconstruida": "Reconstruidas (semanas previas al primer guardado)"}
+        f2 = "".join(f"<tr><td>{nom.get(k, k)}</td><td>{v['partidos']}</td><td>{_pc(v['ganador'])}</td><td>{_pc(v['spread'])}</td><td>{_pc(v['total'])}</td>"
+                     f"<td>{_un(v['unid'])} u</td></tr>" for k, v in po.items())
+        ori = ('<h4 style="margin-top:1em">Según el origen de la predicción</h4><table><thead><tr><th>Origen</th><th>Partidos</th><th>Ganador</th><th>Spread</th><th>Total</th>'
+               f'<th>Unidades (apostando a todos)</th></tr></thead><tbody>{f2}</tbody></table>')
+    return ('<h3 style="margin-top:1.2em">Semana por semana</h3><div style="overflow-x:auto"><table><thead><tr><th>Semana</th><th>Partidos</th><th>Ganador</th><th>Spread</th><th>Total</th>'
+            '<th>Unidades (todos)</th><th>«Posibles valores»</th><th>Predicción</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>"
+            '<p class="explain">El acierto es el del lado que favorecía el modelo. Semana a semana hay solo ~14 partidos: un fin de semana bueno o malo no significa nada por sí solo.</p>' + ori)
+
+
 def _recientes(t: pd.DataFrame, nombre, n: int = 16) -> str:
     if t.empty:
         return ""
     filas = []
     for r in t.sort_values("gameday", ascending=False).head(n).itertuples():
         marc = f"{int(r.away_score)}–{int(r.home_score)}" if pd.notna(r.home_score) else "–"
-        cub = "–" if pd.isna(r.p_cubre_local) else (f"local {_pc(r.p_cubre_local)}" if r.p_cubre_local >= .5 else f"visita {_pc(1 - r.p_cubre_local)}")
+        tiene_m = pd.notna(getattr(r, "pred_mB", np.nan)) and r.pred_mB != r.spread_line
+        sl = (r.pred_mB > r.spread_line) if tiene_m else (r.p_cubre_local >= .5)
+        d_m = f" ({r.pred_mB - r.spread_line:+.1f} vs línea)" if tiene_m else ""
+        cub = ("local" if sl else "visita") + d_m
         rc = "push" if r.result == r.spread_line else ("local" if r.result > r.spread_line else "visita")
-        ov = "–" if pd.isna(r.p_over) else (f"over {_pc(r.p_over)}" if r.p_over >= .5 else f"under {_pc(1 - r.p_over)}")
+        tiene_t = pd.notna(getattr(r, "pred_tB", np.nan)) and r.pred_tB != r.total_line
+        ol = (r.pred_tB > r.total_line) if tiene_t else (r.p_over >= .5)
+        d_t = f" ({r.pred_tB - r.total_line:+.1f} vs línea)" if tiene_t else ""
+        ov = ("over" if ol else "under") + d_t
         ro = "push" if r.total == r.total_line else ("over" if r.total > r.total_line else "under")
-        ok_c = "" if rc == "push" or pd.isna(r.p_cubre_local) else (" ✔" if (rc == "local") == (r.p_cubre_local >= .5) else " ✘")
-        ok_o = "" if ro == "push" or pd.isna(r.p_over) else (" ✔" if (ro == "over") == (r.p_over >= .5) else " ✘")
+        ok_c = "" if rc == "push" else (" ✔" if (rc == "local") == sl else " ✘")
+        ok_o = "" if ro == "push" else (" ✔" if (ro == "over") == ol else " ✘")
         gan = "–" if pd.isna(r.p_gana_local) else (f"{nombre(r.home_team)} {_pc(r.p_gana_local)}" if r.p_gana_local >= .5 else f"{nombre(r.away_team)} {_pc(1 - r.p_gana_local)}")
         ok_g = "" if r.result == 0 or pd.isna(r.p_gana_local) else (" ✔" if (r.result > 0) == (r.p_gana_local >= .5) else " ✘")
         filas.append(f"<tr><td>{pd.Timestamp(r.gameday).strftime('%d/%m')}</td><td>{html.escape(nombre(r.away_team))} @ {html.escape(nombre(r.home_team))}</td>"
                      f"<td>{marc}</td><td>{gan}{ok_g}</td><td>{cub}{ok_c}<br><small>línea {r.spread_line:+g}</small></td>"
                      f"<td>{ov}{ok_o}<br><small>línea {r.total_line:g} · total {r.total:g}</small></td></tr>")
     return ('<h3 style="margin-top:1.2em">Últimos partidos calificados</h3><div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Marcador</th>'
-            '<th>Ganador (modelo)</th><th>Spread (modelo)</th><th>Total (modelo)</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>")
+            '<th>Ganador (modelo)</th><th>Spread: lado del modelo</th><th>Total: lado del modelo</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>")
 
 
 def _ref_html(ref: dict | None) -> str:
@@ -524,6 +648,22 @@ def _ref_html(ref: dict | None) -> str:
             f'<th>«Posibles valores» (ventaja ≥ {UMBRAL * 100:.0f} pts)</th></tr></thead><tbody>{"".join(filas)}</tbody></table></div></details>')
 
 
+def _origen_txt(res: dict) -> str:
+    po = res.get("origen", {})
+    v, r = po.get("en vivo", {}).get("partidos", 0), po.get("reconstruida", {}).get("partidos", 0)
+    if r and v:
+        return f"{v} con la predicción guardada antes del partido y {r} reconstruidos"
+    return f"{v} con la predicción guardada antes del partido" if v else f"{r} reconstruidos"
+
+
+def _nota_reconstruidas(res: dict) -> str:
+    if not res.get("origen", {}).get("reconstruida"):
+        return ""
+    return ('<p class="explain"><b>Reconstruidos:</b> el modelo empezó a guardar sus predicciones en la semana 9; para las semanas anteriores se reconstruyó lo que habría dicho con solo '
+            'datos previos a cada partido (modelo entrenado con temporadas anteriores, ratings con lo ocurrido antes de ese juego) y se compara con la línea de cierre. Es una buena aproximación, '
+            'pero no es lo mismo que una predicción hecha en tiempo real: no hay CLV para esos partidos.</p>')
+
+
 def html_marcador(res: dict | None, nombre=lambda t: t) -> str:
     if not res or res.get("n", 0) == 0:
         pend = (res or {}).get("pendientes", 0)
@@ -540,22 +680,25 @@ def html_marcador(res: dict | None, nombre=lambda t: t) -> str:
         cab = (f'<div class="mc-kpis"><div><b>{nb}</b><span>apuestas «con valor» marcadas</span></div>'
                f'<div><b>{_un(vt["unid"])}</b><span>unidades (1 u por apuesta)</span></div>'
                f'<div><b>{_pc(vt["acierto"])}</b><span>acierto (equilibrio ≈ 52 %)</span></div>'
-               f'<div><b>{clv_txt}</b><span>CLV medio</span></div></div>')
+               f'<div><b>{clv_txt}</b><span>CLV medio (solo en vivo)</span></div></div>')
     return f"""<h2 id="marcador">Marcador: ¿el modelo gana de verdad?</h2>
-<p class="explain">Cada predicción se guarda <b>antes</b> del partido y aquí se califica contra el resultado real y contra el mercado. No hay trampa posible: solo cuentan predicciones hechas antes del kickoff.
-Calificados <b>{res['n']}</b> partidos ({d0} – {d1}){f" · {res['pendientes']} más esperan su resultado" if res['pendientes'] else ""}.</p>
+<p class="explain">Cada predicción se guarda <b>antes</b> del partido y aquí se califica contra el resultado real y contra el mercado. Las guardadas en vivo solo cuentan si se hicieron antes del kickoff; las reconstruidas usan únicamente datos previos al partido.
+Calificados <b>{res['n']}</b> partidos de la temporada ({d0} – {d1}), {_origen_txt(res)}{f" · {res['pendientes']} más esperan su resultado" if res['pendientes'] else ""}.</p>
+{_nota_reconstruidas(res)}
 {_veredicto(res)}
 {_ingenuo(res)}
 {cab}
 <div style="overflow-x:auto"><table class="mc-t"><thead><tr><th>Mercado</th><th>Partidos</th><th>Acierto del lado que favorece el modelo</th><th>Unidades (apostando a todos)</th><th>«Posibles valores»</th><th>Log-loss (modelo vs mercado)</th><th>CLV (línea de cierre)</th></tr></thead><tbody>{filas}</tbody></table></div>
 <details class="mc-ayuda"><summary><b>Cómo leer cada columna</b></summary>
-<ul><li><b>Acierto</b>: % de veces que pasó lo que el modelo veía más probable. En spread y total el punto de equilibrio con cuota −110 es <b>52.4 %</b>; el intervalo del 95 % muestra cuánto puede ser solo azar.</li>
+<ul><li><b>Acierto</b>: % de veces que pasó lo que el modelo veía más probable (en spread y total, el lado al que apunta el modelo B: si su margen o total esperado queda por encima o por debajo de la línea). En spread y total el punto de equilibrio con cuota −110 es <b>52.4 %</b>; el intervalo del 95 % muestra cuánto puede ser solo azar.</li>
 <li><b>Unidades</b>: ganancia o pérdida apostando 1 unidad a ese lado con la cuota real (+ si gana, − si pierde, 0 si hay push).</li>
 <li><b>Posibles valores</b>: solo las apuestas que el reporte marcó con ventaja ≥ {res['umbral'] * 100:.0f} puntos sobre lo que paga el mercado.</li>
 <li><b>Log-loss</b>: mide qué tan buenas son las probabilidades (menos es mejor; 0.693 = lanzar una moneda). Frente al mercado importa que sea <i>menor</i>.</li>
 <li><b>CLV</b>: si la línea se movió a favor del lado que eligió el modelo entre su predicción y el cierre (positivo = el mercado terminó dándole la razón). Quien tiene ventaja real casi siempre tiene CLV positivo, aun antes de que se note en las ganancias.</li></ul></details>
 {_grafica(res['apuestas'])}
+{_semanas_html(res)}
 {_mae_html(res)}
+{_dis_html(res)}
 {_cal_html(res)}
 {_recientes(res['tabla'], nombre)}
 {_ref_html(res.get('ref'))}
