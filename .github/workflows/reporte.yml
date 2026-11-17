@@ -1,10 +1,11 @@
 # Corre el modelo en la nube y publica el reporte como pagina web (tambien se ve en el celular).
-# Se ejecuta solo martes, jueves, sabado y domingo, o a mano: pestaña Actions > "Reporte NFL" > Run workflow.
+# Se ejecuta cada 3 h domingo, lunes y jueves (dias de partido), una vez al dia el resto, o a mano: pestaña Actions > "Reporte NFL" > Run workflow.
 name: Reporte NFL
 
 on:
   schedule:
-    - cron: "17 15 * * 2,4,6,0"     # 15:17 UTC (9:17 am hora de CDMX)
+    - cron: "17 */3 * * 0,1,4"     # domingo, lunes y jueves (dias de partido): cada 3 horas
+    - cron: "17 15 * * 2,3,5,6"    # martes, miercoles, viernes y sabado: una vez al dia (9:17 am CDMX)
   workflow_dispatch:
 
 permissions:
