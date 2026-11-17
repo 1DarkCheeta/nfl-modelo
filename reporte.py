@@ -365,6 +365,13 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
             f'resultado {tot["Resultado (unidades)"]:+.2f} unidades (1 unidad = una apuesta fija). Con tan pocas apuestas esto es ruido, no una tendencia.</p>')
 
     ex_html, sec_top, sec_cal, nav_extra, sec_td, sec_casas, sec_eq, sec_elo = {}, "", "", "", "", "", "", ""
+    sec_pt, nav_pt = "", ""
+    try:                                   # over/under de puntos (total y por equipo) con linea editable
+        import puntos as PT
+        sec_pt = PT.html_puntos(PT.construir(r), nm)
+        nav_pt = '<a href="#puntos">Puntos</a>' if sec_pt else ""
+    except Exception as ex:
+        print(f"  [aviso] no pude armar el over/under de puntos ({ex})")
     if extras:
         import reporte_extra as RE
         import por_equipo as PE
@@ -393,7 +400,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         nav_extra = ('<a href="#porequipo">Por equipo</a>' if sec_eq else '') + ('<a href="#elo">Elo</a>' if sec_elo else '') + '<a href="#td">Touchdowns</a><a href="#casas">Kalshi</a><a href="#props">Props</a>'
     cards = "".join(_card(x, me, ex_html.get(x.game_id, "")) for _, x in res.iterrows())
     body = f"""<main>
-<nav class="nav"><a href="#resumen">Resumen</a><a href="#equipos">Equipos</a>{nav_extra}<a href="#partidos">Partidos</a><a href="#historial">Historial</a></nav>
+<nav class="nav"><a href="#resumen">Resumen</a><a href="#equipos">Equipos</a>{nav_pt}{nav_extra}<a href="#partidos">Partidos</a><a href="#historial">Historial</a></nav>
 <h1 id="resumen">NFL · Temporada {cur}, semana {wk}</h1>
 <p class="sub">{n} partidos pendientes con línea publicada · generado el {datetime.now():%d/%m/%Y %H:%M}</p>
 {resumen}
@@ -416,6 +423,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
 <div class="chart"><img alt="Ventajas" src="data:image/png;base64,{figs['edge']}"></div>
 
 {sec_eq}
+{sec_pt}
 {sec_elo}
 {sec_td}
 {sec_casas}
@@ -434,6 +442,10 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         CSS_X, JS_X = RE.CSS + PE.CSS + EL.CSS, RE.JS + PE.JS
     else:
         CSS_X, JS_X = "", ""
+    if sec_pt:
+        import por_equipo as PE
+        CSS_X += ("" if extras else PE.CSS) + PT.CSS
+        JS_X += PT.JS
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
     ruta = ruta or REPORTES / f"reporte_{cur}_semana{wk:02d}.html"
     ruta.write_text(doc, encoding="utf-8")

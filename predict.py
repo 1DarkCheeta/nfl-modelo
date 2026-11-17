@@ -60,7 +60,7 @@ def compute(refresh: bool = True, week: int | None = None, show_all: bool = Fals
 
     pend = df[df.result.isna() & df.spread_line.notna() & df.total_line.notna() & (df.season == cur)].copy()
     if pend.empty:
-        return {"res": pend, "oos": oos, "cur": cur, "week": None, "min_edge": min_edge, "games": games, "state": state}
+        return {"res": pend, "oos": oos, "cur": cur, "week": None, "min_edge": min_edge, "games": games, "state": state, "df": df, "final": final}
     if not show_all:
         wk = week if week else int(pend.week.min())
         pend = pend[pend.week == wk]
@@ -108,7 +108,7 @@ def compute(refresh: bool = True, week: int | None = None, show_all: bool = Fals
     res["margen_mercado"] = res.spread_line
     res["linea_local"] = -res.spread_line
     res["min_edge"] = min_edge
-    return {"res": res, "oos": oos, "cur": cur, "week": wk, "min_edge": min_edge, "games": games, "state": state}
+    return {"res": res, "oos": oos, "cur": cur, "week": wk, "min_edge": min_edge, "games": games, "state": state, "df": df, "final": final}
 
 
 def veredicto(edge, lado, min_edge, tiene=True) -> str:

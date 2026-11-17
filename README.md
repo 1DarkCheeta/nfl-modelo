@@ -265,3 +265,17 @@ Para cambiar el punto de partida, edita `desde` en `elo.calcular(games, cur, des
 ## Página web
 
 Archivo `publicar_web.py` y guía `PASOS_PAGINA_WEB.md`. Al terminar `semana_nfl.py` se crea la carpeta `docs/` con el reporte (`docs/index.html`, la página principal) y una copia con fecha en `docs/archivo/` (la lista está en `docs/archivo.html`). El archivo `workflow_reporte.yml` (se coloca en `.github/workflows/reporte.yml` dentro de GitHub) permite que GitHub corra el modelo solo y publique esa carpeta como página web visible desde el celular. Los pasos para activarlo están en `PASOS_PAGINA_WEB.md`.
+
+---
+
+## Over / under de puntos (total y por equipo)
+
+Archivo `puntos.py`. En el reporte aparece la sección **«Over / under de puntos»** (enlace «Puntos» arriba), para los partidos pendientes de la semana en curso y la siguiente. Por cada partido hay tres bloques: **total del partido**, **puntos del local** y **puntos de la visita**. En cada uno:
+
+- cuántos puntos espera el modelo y un rango probable (80 %);
+- una casilla **«Línea»** donde escribes cualquier número (o usas −1 / +1, o ↺ para volver a la original) y se recalcula al instante la probabilidad de **over**, **under** y **push** (si la línea es un número entero), con la «cuota justa» y el punto de equilibrio de −110 (52.4 %);
+- un gráfico con el reparto de marcadores posibles; la parte naranja es el over.
+
+**De dónde salen los números.** El modelo de totales (tB) y el de margen (mB) dan el total y la diferencia esperados; local = (total + margen) / 2 y visita = (total − margen) / 2. Si un partido aún no tiene línea del mercado se usan los modelos A (sin mercado) y el reporte lo avisa. Las líneas iniciales de cada equipo son las implícitas del mercado: (total ± spread) / 2. La incertidumbre sale de los errores reales que tuvo el modelo fuera de muestra desde 2008 (400 percentiles por tipo de error), con los puntos tratados como números enteros.
+
+**Qué tan confiable es.** Probado con el modelo ajustado solo con temporadas previas (2013-2026) y con líneas desplazadas de −14 a +14 puntos del esperado: las probabilidades coincidieron con la frecuencia real con un error típico de 1-2 puntos porcentuales (total y por equipo). **Contra la línea del mercado el modelo no tiene ventaja**: ahí sus probabilidades rondan 50 %, igual que una moneda (log-loss 0.693). Sirve para estimar líneas que el mercado no publica (otro total, el total de un equipo). Limitación: el historial no trae líneas de total por equipo del mercado, así que ese caso se validó con las líneas implícitas.
