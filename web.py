@@ -239,7 +239,7 @@ def armar(c: dict) -> str:
     t3 = sub3 + c.get("sec_jug", "") + c.get("sec_eq", "") + c.get("sec_elo", "") + c.get("sec_td", "") + c.get("sec_casas", "") + c.get("sec_top", "")
     if not (c.get("sec_eq") or c.get("sec_elo") or c.get("sec_jug") or c.get("sec_td") or c.get("sec_casas") or c.get("sec_top")):
         t3 = '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores y props (corre el programa completo).</div>'
-    it4 = [("marcador", "Marcador", bool(c.get("sec_mc"))), ("confianza", "Confianza", bool(c.get("cred"))), ("fiab-props", "Props y TD", bool(c.get("sec_cal"))),
+    it4 = [("record", "Récord de elecciones", bool(c.get("sec_mc"))), ("marcador", "Marcador", bool(c.get("sec_mc"))), ("confianza", "Confianza", bool(c.get("cred"))), ("fiab-props", "Props y TD", bool(c.get("sec_cal"))),
            ("historial", "Historial", True), ("ayuda", "Cómo leer", True)]
     sub4 = _subnav(it4)
     t4 = (sub4 + c.get("sec_mc", "") + (f'<div id="confianza">{c["cred"]}</div>' if c.get("cred") else "") + c.get("sec_cal", "") +

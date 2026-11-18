@@ -664,6 +664,117 @@ def _nota_reconstruidas(res: dict) -> str:
             'pero no es lo mismo que una predicción hecha en tiempo real: no hay CLV para esos partidos.</p>')
 
 
+# ------------------------------------------------------------------------------------------ RECORD DE ELECCIONES
+def registro(t: pd.DataFrame) -> pd.DataFrame:
+    """Una fila por partido jugado con la ELECCION del modelo en cada mercado y si acerto (True/False/None si empate/push).
+
+    Ganador: el equipo con mas de 50 % de probabilidad de ganar. Spread: el lado hacia el que apunta el margen esperado
+    del modelo B (si no hay, el de mas de 50 % de cubrir). Total: over o under igual. Spread y total coinciden con la
+    tabla de acierto; en ganador aqui se cuenta siempre al favorito del modelo (la tabla cambia al lado «de valor» cuando
+    el reporte marco uno, por eso puede diferir un poco)."""
+    filas = []
+    for r in t.sort_values(["gameday", "game_id"]).itertuples():
+        d = {"game_id": r.game_id, "fecha": r.gameday, "week": getattr(r, "week", np.nan), "origen": getattr(r, "origen", ""),
+             "away": r.away_team, "home": r.home_team, "marcador": (f"{int(r.away_score)}–{int(r.home_score)}" if pd.notna(r.home_score) else "–")}
+        if pd.notna(r.p_gana_local) and r.result != 0:
+            home = r.p_gana_local >= 0.5
+            d.update(g_eq=(r.home_team if home else r.away_team), g_p=(r.p_gana_local if home else 1 - r.p_gana_local),
+                     g_ok=bool((r.result > 0) == home))
+        if pd.notna(r.p_cubre_local) and pd.notna(r.spread_line):
+            pm = getattr(r, "pred_mB", np.nan)
+            home = (pm > r.spread_line) if (pd.notna(pm) and pm != r.spread_line) else r.p_cubre_local >= 0.5
+            d.update(s_eq=(r.home_team if home else r.away_team), s_linea=(-r.spread_line if home else r.spread_line),
+                     s_ok=(None if r.result == r.spread_line else bool((r.result > r.spread_line) == home)))
+        if pd.notna(r.p_over) and pd.notna(r.total_line):
+            pt = getattr(r, "pred_tB", np.nan)
+            over = (pt > r.total_line) if (pd.notna(pt) and pt != r.total_line) else r.p_over >= 0.5
+            d.update(t_lado=("OVER" if over else "UNDER"), t_linea=r.total_line, t_total=r.total,
+                     t_ok=(None if r.total == r.total_line else bool((r.total > r.total_line) == over)))
+        filas.append(d)
+    return pd.DataFrame(filas)
+
+
+def _wl(x: pd.Series) -> tuple[int, int, int]:
+    """(ganadas, perdidas, empates) de una serie True/False/None."""
+    ok = x.dropna()
+    return int(ok.sum()), int((~ok.astype(bool)).sum()), int(x.isna().sum())
+
+
+def _racha(x: pd.Series) -> str:
+    ok = [bool(v) for v in x.dropna().tolist()]
+    if not ok:
+        return "–"
+    n = 1
+    while n < len(ok) and ok[-1 - n] == ok[-1]:
+        n += 1
+    return f"{'G' if ok[-1] else 'P'}{n}"
+
+
+def _marca(v) -> str:
+    return '<span class="rk-pu">push</span>' if v is None or (isinstance(v, float) and np.isnan(v)) else (
+        '<span class="rk-w">✔ ganó</span>' if v else '<span class="rk-l">✘ perdió</span>')
+
+
+def _record_html(res: dict, nombre=lambda t: t) -> str:
+    t = res.get("tabla")
+    if t is None or t.empty:
+        return ""
+    R = registro(t)
+    if R.empty:
+        return ""
+    tarjetas = []
+    for col, ttl, sub in (("g_ok", "Ganador del partido", "el equipo que el modelo eligió para ganar"),
+                          ("s_ok", "Spread", "el lado de la línea que eligió el modelo"),
+                          ("t_ok", "Over / Under", "el lado del total que eligió el modelo")):
+        if col not in R.columns or R[col].dropna().empty:
+            continue
+        w, l, e = _wl(R[col])
+        n = w + l
+        vivo = R[R.origen == "en vivo"][col]
+        extra = ""
+        if len(vivo) and len(vivo) < len(R):
+            wv, lv, _ = _wl(vivo)
+            extra = f'<br><small>solo guardadas antes del partido: {wv}-{lv}</small>'
+        ult = "".join(('<i class="rk-w">●</i>' if bool(v) else '<i class="rk-l">●</i>') for v in R[col].dropna().tail(10))
+        tarjetas.append(
+            f'<div class="rk-card"><span class="rk-t">{ttl}</span><b class="rk-n">{w}-{l}{f"-{e}" if e else ""}</b>'
+            f'<span class="rk-p">{_pc(w / n) if n else "–"} de aciertos · racha {_racha(R[col])}</span>'
+            f'<span class="rk-d">{sub}{extra}</span><span class="rk-f" title="últimas 10 elecciones, la más reciente a la derecha">{ult}</span></div>')
+    if not tarjetas:
+        return ""
+    # --- por semana
+    filas = []
+    for k, x in R.groupby("week"):
+        celdas = []
+        for col in ("g_ok", "s_ok", "t_ok"):
+            if col in x.columns:
+                w, l, e = _wl(x[col])
+                celdas.append(f"<td><b>{w}-{l}</b>{f'-{e}' if e else ''}</td>")
+            else:
+                celdas.append("<td>–</td>")
+        filas.append(f"<tr><td><b>{int(k)}</b></td><td>{len(x)}</td>{''.join(celdas)}</tr>")
+    semanas = ('<h3 style="margin-top:1em">Récord semana por semana</h3><div style="overflow-x:auto"><table><thead><tr><th>Semana</th><th>Partidos</th>'
+               '<th>Ganador</th><th>Spread</th><th>Over / Under</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>")
+    # --- cada eleccion
+    lin = []
+    for r in R.sort_values(["fecha", "game_id"], ascending=False).itertuples():
+        g = "–" if not isinstance(getattr(r, "g_eq", None), str) else (
+            f"<b>{html.escape(nombre(r.g_eq))}</b> ({_pc(r.g_p)})<br>{_marca(r.g_ok)}")
+        s = "–" if not isinstance(getattr(r, "s_eq", None), str) else (
+            f"<b>{html.escape(nombre(r.s_eq))} {r.s_linea:+g}</b><br>{_marca(r.s_ok)}")
+        o = "–" if not isinstance(getattr(r, "t_lado", None), str) else (
+            f"<b>{r.t_lado} {r.t_linea:g}</b> <small>(total {r.t_total:g})</small><br>{_marca(r.t_ok)}")
+        lin.append(f"<tr><td>{pd.Timestamp(r.fecha).strftime('%d/%m')}</td><td>{html.escape(nombre(r.away))} @ {html.escape(nombre(r.home))}<br><small>{r.marcador}</small></td>"
+                   f"<td>{g}</td><td>{s}</td><td>{o}</td></tr>")
+    detalle = (f'<details class="rk-det"><summary><b>Ver cada elección ({len(R)} partidos)</b></summary><div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Partido</th>'
+               '<th>Ganador elegido</th><th>Spread elegido</th><th>Total elegido</th></tr></thead><tbody>' + "".join(lin) + "</tbody></table></div></details>")
+    return (f'<h3 id="record" style="margin-top:1em">Récord de elecciones del modelo en la temporada</h3>'
+            '<p class="explain">En cada partido el modelo elige un lado; aquí se cuenta cuántas veces acertó (<b>ganadas-perdidas</b>, y empates/push al final si los hay). '
+            'El récord de «Ganador» es el de las veces que el equipo elegido ganó el partido, sin importar cuánto pagaba: elegir al favorito acierta mucho más que apostar con ventaja. '
+            'Para saber si de verdad hay ventaja hay que ver también las unidades y el CLV de más abajo. (La columna «Ganador» de la tabla de abajo puede diferir un poco: ahí, si el reporte marcó un «posible valor», se cuenta el lado con ventaja aunque no sea el favorito.)</p>'
+            f'<div class="rk-grid">{"".join(tarjetas)}</div>{semanas}{detalle}')
+
+
 def html_marcador(res: dict | None, nombre=lambda t: t) -> str:
     if not res or res.get("n", 0) == 0:
         pend = (res or {}).get("pendientes", 0)
@@ -684,6 +795,7 @@ def html_marcador(res: dict | None, nombre=lambda t: t) -> str:
     return f"""<h2 id="marcador">Marcador: ¿el modelo gana de verdad?</h2>
 <p class="explain">Cada predicción se guarda <b>antes</b> del partido y aquí se califica contra el resultado real y contra el mercado. Las guardadas en vivo solo cuentan si se hicieron antes del kickoff; las reconstruidas usan únicamente datos previos al partido.
 Calificados <b>{res['n']}</b> partidos de la temporada ({d0} – {d1}), {_origen_txt(res)}{f" · {res['pendientes']} más esperan su resultado" if res['pendientes'] else ""}.</p>
+{_record_html(res, nombre)}
 {_nota_reconstruidas(res)}
 {_veredicto(res)}
 {_ingenuo(res)}
@@ -710,4 +822,8 @@ CSS = """
 .mc-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:.8em 0}.mc-kpis div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .mc-kpis b{display:block;font-size:1.5rem}.mc-kpis span{color:var(--ink2);font-size:.82rem}@media(max-width:700px){.mc-kpis{grid-template-columns:1fr 1fr}}
 .mc-t small,.mc-ref small{color:var(--ink2)}.mc-ayuda,.mc-ref{margin:.6em 0}
+.rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:.8em 0}.rk-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.rk-t{font-weight:700}.rk-n{font-size:2.3rem;line-height:1.1;letter-spacing:.5px}.rk-p{font-size:.9rem}.rk-d,.rk-d small{color:var(--ink2);font-size:.8rem}
+.rk-f{margin-top:4px;letter-spacing:2px;font-size:.9rem}.rk-f i{font-style:normal}.rk-w{color:#0a7d3c}.rk-l{color:#b3261e}.rk-pu{color:var(--ink2)}.rk-det{margin:.8em 0}
+@media(max-width:700px){.rk-grid{grid-template-columns:1fr}}
 """
