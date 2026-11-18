@@ -721,7 +721,7 @@ def _estado_record(res: dict) -> str:
     pend = res.get("pendientes", 0)
     esp = (f" Hay <b>{pend}</b> partido(s) con elección ya guardada esperando su resultado: entrarán al récord en la primera corrida después de jugarse."
            if pend else "")
-    return ('<p class="explain rk-est"><b>Se actualiza solo:</b> en cada corrida del reporte (martes, jueves, sábado y domingo) cada partido terminado entra al récord con la '
+    return ('<p class="rk-est"><b>Se actualiza solo:</b> en cada corrida del reporte (martes, jueves, sábado y domingo) cada partido terminado entra al récord con la '
             f'<b>última elección que hizo el modelo antes del kickoff</b>; nada se cambia después de que se juega. Último partido contado: {ult}.{esp}</p>')
 
 
@@ -833,6 +833,7 @@ CSS = """
 .mc-kpis b{display:block;font-size:1.5rem}.mc-kpis span{color:var(--ink2);font-size:.82rem}@media(max-width:700px){.mc-kpis{grid-template-columns:1fr 1fr}}
 .mc-t small,.mc-ref small{color:var(--ink2)}.mc-ayuda,.mc-ref{margin:.6em 0}
 .rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:.8em 0}.rk-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.rk-est{margin:.5em 0;padding:8px 12px;border-left:4px solid var(--blue);background:var(--card);border-radius:8px;font-size:.92rem}
 .rk-t{font-weight:700}.rk-n{font-size:2.3rem;line-height:1.1;letter-spacing:.5px}.rk-p{font-size:.9rem}.rk-d,.rk-d small{color:var(--ink2);font-size:.8rem}
 .rk-f{margin-top:4px;letter-spacing:2px;font-size:.9rem}.rk-f i{font-style:normal}.rk-w{color:#0a7d3c}.rk-l{color:#b3261e}.rk-pu{color:var(--ink2)}.rk-det{margin:.8em 0}
 @media(max-width:700px){.rk-grid{grid-template-columns:1fr}}
