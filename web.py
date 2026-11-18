@@ -248,7 +248,7 @@ def armar(c: dict) -> str:
     t5 = (c["sec_proy"] if c.get("sec_proy") else '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores (corre el programa completo).</div>')
     tabs = [("tab-semana", f"Esta semana", t1), ("tab-partidos", f"Partidos ({len(js_)})", t2), ("tab-jugadores", "Equipos y jugadores", t3), ("tab-proyecciones", "PROYECCIONES", t5), ("tab-calidad", "Calidad", t4)]
     it2 = [("partidos", "Partido por partido", True), ("puntos", "Over/under, clima y combinadas (cómo funciona)", bool(intro_pt))]
-    grupos = [(tabs[0][1], it1), (tabs[1][1], it2), (tabs[2][1], it3), (tabs[3][1], [("proyecciones", "Proyección por volumen (Linemaker)", bool(c.get("sec_proy")))]), (tabs[4][1], it4)]
+    grupos = [(tabs[0][1], it1), (tabs[1][1], it2), (tabs[2][1], it3), (tabs[3][1], [("proyecciones", "Cruce ofensiva vs defensa", bool(c.get("sec_proy"))), ("proy-of", "Ofensivas: cuánto produce cada una", bool(c.get("sec_proy"))), ("proy-de", "Defensas: cuánto permite cada una", bool(c.get("sec_proy")))]), (tabs[4][1], it4)]
     todo = "".join(f'<div class="am-g"><div class="am-t">{_esc(t)}</div>' + "".join(f'<a href="#{i}">{_esc(x)}</a>' for i, x, ok in its if ok) + "</div>" for t, its in grupos)
     barra = ('<button type="button" class="menubtn" id="menubtn" aria-haspopup="true" aria-expanded="false" aria-controls="allmenu">☰ Todo</button>'
              + "".join(f'<button type="button" class="tabbtn" data-t="{i}">{_esc(t)}</button>' for i, t, _ in tabs))

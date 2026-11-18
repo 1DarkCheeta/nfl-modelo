@@ -203,7 +203,7 @@ Vistas listas para consultar: `v_jugador_temporada` (targets, recepciones, % atr
 | `reporte_extra.py` | Bloques HTML de matchups, props y calculadora |
 | `web.py` | Diseño de la página: pestañas, resumen por partido, selector de partido, texto plegable, frescura |
 | `jugadores.py` | LINEA AC (explorador de jugadores, los 32 equipos): Hit Rate semana a semana contra una línea editable |
-| `proyecciones.py` | Pestaña PROYECCIONES (método Linemaker: volumen × lo que permite la defensa): QB, WR/TE, RB, puntos de equipo, 1er tiempo y ventaja por hit rate |
+| `proyecciones.py` | Pestaña PROYECCIONES: cuánto produce cada ofensiva y cuánto permite cada defensa, y el cruce de un partido (método Linemaker) |
 | `movimientos.py` | Traspasos y fichajes: quién se movió a dónde, y que el modelo use el equipo vigente de cada jugador |
 | `qb.py` | Mariscales: quién abre frente al titular habitual, alertas y medición histórica |
 | `backtest.py` | Validación walk-forward 2015-2025 → `outputs/backtest_report.md` |
@@ -373,12 +373,12 @@ Además: los párrafos explicativos largos quedan en un «Cómo se lee» plegabl
 
 Peso: una semana completa pesa ~2.5 MB de HTML (≈0.6 MB comprimido por GitHub Pages; casi todo son las tablas de props); las imágenes cargan en diferido.
 
-## PROYECCIONES (método Linemaker)
+## PROYECCIONES (cuánto produce una ofensiva y cuánto permite una defensa)
 
-Archivo `proyecciones.py` (solo lee datos; **no cambia ningún cálculo del modelo**). Es la versión de la página del archivo `proyeccion_linemaker.py` (Streamlit): pestaña propia **«PROYECCIONES»**, también en el menú «☰ Todo».
+Archivo `proyecciones.py` (solo lee datos; **no cambia ningún cálculo del modelo**, sin líneas ni momios). Pestaña propia **«PROYECCIONES»**, también en el menú «☰ Todo». Parte del método de `proyeccion_linemaker.py` (volumen × lo que permite la defensa).
 
-- **Fórmulas** (idénticas al archivo original; se comprobaron 500 casos al azar, diferencia máxima 7e-8): QB = completos por partido × yardas por completo que permite la defensa; WR/TE = completos del QB × yardas por completo permitidas × target share; RB = acarreos por partido × yardas por acarreo permitidas; equipo = promedio de (jugadas × pts/jugada propios) y (jugadas × pts/jugada que permite el rival); 1er tiempo = (lo que anota + lo que permite el rival) ÷ 2.
-- **% Over/Under** con distribución normal y desviaciones de referencia (QB 60, WR 25, RB 25, equipo 7, 1T 5). Escribes la línea y el momio de tu app (Over y Under por separado, ej. −110 / +105) y ves la probabilidad, lo que implica el momio y la ventaja.
-- **Datos que rellena solo** (de la temporada en curso, todo editable): completos, acarreos y target share del jugador; yardas por completo y por acarreo que permite cada defensa; jugadas por partido (snaps ofensivos) y puntos por jugada de ataque y de defensa; completos por partido del equipo. El rival se rellena con el próximo partido del equipo (cámbialo si quieres).
-- El **1er tiempo** y la **ventaja por hit rate** se escriben a mano: la base no guarda marcador por mitades.
-- Es una segunda opinión basada en promedios de temporada (no ajusta por lesiones, clima ni ritmo); no reemplaza las probabilidades del modelo.
+- **Ofensivas**: tabla de los 32 equipos con lo que *produce* cada una por partido (puntos, jugadas, puntos por jugada, yardas totales, de pase, completos, intentos, yardas por completo, yardas por tierra, acarreos, yardas por acarreo, TD de pase y por tierra). Se ordena tocando el nombre de la columna; verde = 8 mejores, rojo = 8 peores; fila final = promedio de la liga.
+- **Defensas**: la misma tabla con lo que *permite* cada defensa (lo que produjeron sus rivales); menos es mejor.
+- **Cruce ofensiva vs defensa**: eliges un equipo y su rival (se rellena con el próximo partido; botón ⇄ para cambiar) y ves, para las dos ofensivas, lo que produce, lo que permite la defensa y la **proyección** con las fórmulas del pizarrón: pase = completos por partido × yardas por completo permitidas; tierra = acarreos por partido × yardas por acarreo permitidas; puntos = promedio de (jugadas × pts/jugada propios) y (jugadas × pts/jugada que permite el rival). Debajo, los QB, RB y WR/TE del equipo con su volumen, su promedio y su proyección de yardas contra esa defensa (WR/TE = completos del equipo × yardas por completo permitidas × target share).
+- Datos de la temporada en curso (solo temporada regular), de `player_weeks`, los juegos terminados y los snaps ofensivos (jugadas). Se revisó contra un cálculo independiente (BAL: 204.7 yardas de pase y 137.8 por tierra por partido, iguales). Las fórmulas coinciden con el archivo original (500 casos, diferencia máxima 7e-8).
+- Limitaciones: promedios de temporada (no ajustan por lesiones, clima ni ritmo); no hay marcador por mitades, así que no hay «1er tiempo»; las yardas por acarreo incluyen acarreos de QB y receptores; la lista de jugadores incluye solo a quien ya tiene volumen en la temporada.
