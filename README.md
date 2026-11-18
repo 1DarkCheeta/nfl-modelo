@@ -203,6 +203,7 @@ Vistas listas para consultar: `v_jugador_temporada` (targets, recepciones, % atr
 | `reporte_extra.py` | Bloques HTML de matchups, props y calculadora |
 | `web.py` | Diseño de la página: pestañas, resumen por partido, selector de partido, texto plegable, frescura |
 | `jugadores.py` | LINEA AC (explorador de jugadores, los 32 equipos): Hit Rate semana a semana contra una línea editable |
+| `proyecciones.py` | Pestaña PROYECCIONES (método Linemaker: volumen × lo que permite la defensa): QB, WR/TE, RB, puntos de equipo, 1er tiempo y ventaja por hit rate |
 | `movimientos.py` | Traspasos y fichajes: quién se movió a dónde, y que el modelo use el equipo vigente de cada jugador |
 | `qb.py` | Mariscales: quién abre frente al titular habitual, alertas y medición histórica |
 | `backtest.py` | Validación walk-forward 2015-2025 → `outputs/backtest_report.md` |
@@ -333,13 +334,13 @@ Archivo `movimientos.py`. Las estadísticas por jugador traen el equipo de su **
 
 ## LINEA AC (explorador de jugadores, los 32 equipos)
 
-Archivo `jugadores.py` (solo arma datos y HTML; **no cambia ningún cálculo del modelo**). Es la versión estática del dashboard «NFL Props Tracker» (Streamlit) integrada a la página: pestaña **«Equipos y jugadores» → «Jugadores»**.
+Archivo `jugadores.py` (solo arma datos y HTML; **no cambia ningún cálculo del modelo**). Es la versión estática del dashboard «NFL Props Tracker» (Streamlit) integrada a la página: pestaña **«Equipos y jugadores» → «LINEA AC»** (es la primera sección de esa pestaña).
 
 - Elige temporada, equipo, posición (QB, RB, WR, TE), jugador (titular, banca o lesionado, con su estado) y estadística; filtra por **Local / Visitante / Ambos** y por **Over / Under**.
 - Muestra **Hit Rate** y récord (cubrió / no cubrió), promedio real vs línea, Local vs Visitante, gráfica de barras semana a semana con la línea encima, fichas «¿Cubrió la línea?», detalle semana a semana, bloque «Acarreos por partido» para los RB y los **puntos totales del partido** del equipo (Over/Under, local/visitante).
 - **Línea editable**: parte de la línea «normal» del modelo (o del promedio de la temporada si el jugador no tiene proyección); botones para usar la del modelo, el promedio o la de Kalshi. Si el jugador tiene proyección, la tarjeta «Próximo partido» da su valor esperado, rango típico y el % de superar *tu* línea.
 - Reglas idénticas al dashboard: Over cubre si real > línea; Under si real < línea; push (igual) no cuenta; «No jugó» y «Sin línea» no cuentan; **Hit Rate = cubrió ÷ (cubrió + no cubrió)**; Local/Visitante sale del calendario.
-- Estadísticas: yardas de pase, TDs de pase, yardas por tierra, acarreos, recepciones, yardas por recepción, TD (por tierra o recepción), y además pases completos, intercepciones y objetivos (targets). Temporada actual y la anterior, solo temporada regular.
+- Estadísticas: yardas de pase, TDs de pase, yardas por tierra, acarreos, recepciones, yardas por recepción, TD (por tierra o recepción), y además pases completos, intercepciones objetivos (targets), intentos de pase, TD por tierra, TD por recepción y yardas por tierra + recepción. El selector de estadística muestra solo las que aplican a la posición elegida. Temporada actual y la anterior, solo temporada regular.
 - Los datos van embebidos en la página (sin servidor y sin descargas nuevas: salen de la misma base de datos). El jugador traspasado aparece con su equipo vigente (ver «Movimientos»). Se probó contra la lógica original del dashboard (`metrics.py`) en 400 combinaciones al azar: 0 diferencias.
 - No se usa The Odds API: las líneas «reales» de casas por semana no existen gratis en forma histórica; el Hit Rate se mide contra la línea que escribas o la normal del modelo (ver «Líneas automáticas de Kalshi» para las actuales).
 
@@ -371,3 +372,13 @@ Además: los párrafos explicativos largos quedan en un «Cómo se lee» plegabl
 **Nada de lo que hacías se perdió.** Las calculadoras (líneas editables del total y de cada equipo, combinadas, props, touchdowns, equipo por equipo y la combinada de jugadores) son las mismas y escuchan eventos a nivel de documento, así que funcionan igual aunque estén en otra pestaña. Se probó automáticamente en un navegador contra el diseño anterior con una semana completa: 243 cálculos de puntos, 108 de combinadas, 804 props, 326 touchdowns, 157 de equipo por equipo y la combinada de jugadores dieron **resultados idénticos**. Si algo falla al armar el diseño nuevo, `reporte.py` usa el anterior (una sola página larga); para forzarlo: variable de entorno `NFL_DISENO_ANTERIOR=1`.
 
 Peso: una semana completa pesa ~2.5 MB de HTML (≈0.6 MB comprimido por GitHub Pages; casi todo son las tablas de props); las imágenes cargan en diferido.
+
+## PROYECCIONES (método Linemaker)
+
+Archivo `proyecciones.py` (solo lee datos; **no cambia ningún cálculo del modelo**). Es la versión de la página del archivo `proyeccion_linemaker.py` (Streamlit): pestaña propia **«PROYECCIONES»**, también en el menú «☰ Todo».
+
+- **Fórmulas** (idénticas al archivo original; se comprobaron 500 casos al azar, diferencia máxima 7e-8): QB = completos por partido × yardas por completo que permite la defensa; WR/TE = completos del QB × yardas por completo permitidas × target share; RB = acarreos por partido × yardas por acarreo permitidas; equipo = promedio de (jugadas × pts/jugada propios) y (jugadas × pts/jugada que permite el rival); 1er tiempo = (lo que anota + lo que permite el rival) ÷ 2.
+- **% Over/Under** con distribución normal y desviaciones de referencia (QB 60, WR 25, RB 25, equipo 7, 1T 5). Escribes la línea y el momio de tu app (Over y Under por separado, ej. −110 / +105) y ves la probabilidad, lo que implica el momio y la ventaja.
+- **Datos que rellena solo** (de la temporada en curso, todo editable): completos, acarreos y target share del jugador; yardas por completo y por acarreo que permite cada defensa; jugadas por partido (snaps ofensivos) y puntos por jugada de ataque y de defensa; completos por partido del equipo. El rival se rellena con el próximo partido del equipo (cámbialo si quieres).
+- El **1er tiempo** y la **ventaja por hit rate** se escriben a mano: la base no guarda marcador por mitades.
+- Es una segunda opinión basada en promedios de temporada (no ajusta por lesiones, clima ni ritmo); no reemplaza las probabilidades del modelo.

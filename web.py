@@ -245,9 +245,10 @@ def armar(c: dict) -> str:
     t4 = (sub4 + c.get("sec_mc", "") + (f'<div id="confianza">{c["cred"]}</div>' if c.get("cred") else "") + c.get("sec_cal", "") +
           f'<h2 id="historial">Cómo le fue en semanas anteriores</h2>{c["hist_html"]}'
           f'<h2 id="ayuda">Cómo leer este reporte</h2>{c["ayuda"]}')
-    tabs = [("tab-semana", f"Esta semana", t1), ("tab-partidos", f"Partidos ({len(js_)})", t2), ("tab-jugadores", "Equipos y jugadores", t3), ("tab-calidad", "Calidad", t4)]
+    t5 = (c["sec_proy"] if c.get("sec_proy") else '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores (corre el programa completo).</div>')
+    tabs = [("tab-semana", f"Esta semana", t1), ("tab-partidos", f"Partidos ({len(js_)})", t2), ("tab-jugadores", "Equipos y jugadores", t3), ("tab-proyecciones", "PROYECCIONES", t5), ("tab-calidad", "Calidad", t4)]
     it2 = [("partidos", "Partido por partido", True), ("puntos", "Over/under, clima y combinadas (cómo funciona)", bool(intro_pt))]
-    grupos = [(tabs[0][1], it1), (tabs[1][1], it2), (tabs[2][1], it3), (tabs[3][1], it4)]
+    grupos = [(tabs[0][1], it1), (tabs[1][1], it2), (tabs[2][1], it3), (tabs[3][1], [("proyecciones", "Proyección por volumen (Linemaker)", bool(c.get("sec_proy")))]), (tabs[4][1], it4)]
     todo = "".join(f'<div class="am-g"><div class="am-t">{_esc(t)}</div>' + "".join(f'<a href="#{i}">{_esc(x)}</a>' for i, x, ok in its if ok) + "</div>" for t, its in grupos)
     barra = ('<button type="button" class="menubtn" id="menubtn" aria-haspopup="true" aria-expanded="false" aria-controls="allmenu">☰ Todo</button>'
              + "".join(f'<button type="button" class="tabbtn" data-t="{i}">{_esc(t)}</button>' for i, t, _ in tabs))
