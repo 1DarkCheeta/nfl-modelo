@@ -193,7 +193,7 @@ def _rbs_html(m: dict, rbs) -> str:
                       for n, c in (("Tasa de éxito (ataque)", "off_sr"), ("Tasa de éxito (defensa; menor = mejor)", "def_sr")))
     sem = rbs.semanas.iloc[0]
     return (f'<p class="explain"><b>Referencia rbsdm.com</b> (temporada regular, semanas {sem}; «#» = lugar entre 32 equipos, 1 = mejor). '
-            f'Es otra fuente para contrastar el matchup de arriba.</p><div class="scroll"><table class="pt"><tr><th></th>'
+            f'Es otra fuente para contrastar el matchup de arriba.</p><div class="scroll"><table class="pt"><tr><th>Métrica</th>'
             f'<th>{nm(equipos[0])}</th><th>{nm(equipos[1])}</th></tr>{cuerpo}</table></div>')
 
 
@@ -540,7 +540,7 @@ def calidad_td_html(ev: dict) -> str:
     rows = "".join(f"<tr><td>{p * 100:.0f}%</td><td>{r * 100:.0f}%</td><td>{n:,}</td></tr>" for p, r, n in zip(c["pred"], c["real"], c["n"]))
     mej = (1 - t["ll_cal"] / t["ll_base"]) * 100
     return ('<h2 id="fiab-td">¿Qué tan confiables son las probabilidades de touchdown?</h2>'
-            f'<p class="explain">Probado con {t["n"]:,} jugador-partidos de 2021-2025, cada temporada predicha solo con años anteriores. '
+            f'<p class="explain keep">Probado con {t["n"]:,} jugador-partidos de 2021-2025, cada temporada predicha solo con años anteriores. '
             f'En promedio un jugador elegible anota en {t["tasa"] * 100:.0f}% de sus partidos. Contra el simple promedio reciente de TD, '
             f'el modelo reduce el error de probabilidad (log-loss) {mej:.1f}% ({t["ll_cal"]:.3f} vs {t["ll_base"]:.3f}). '
             f'Entre el 10% de jugadores con mayor probabilidad, el modelo decía {t["top10_pred"] * 100:.0f}% y anotó {t["top10_real"] * 100:.0f}%.</p>'
@@ -575,6 +575,15 @@ def local_visita_html(cov) -> str:
             + "".join(rows) + '</table></div>')
 
 
+def _props_vivo() -> str:
+    try:
+        import props_vivo
+        return props_vivo.html_bloque()
+    except Exception as e:  # nunca romper el reporte por este bloque
+        print(f"  [aviso] calificación en vivo de props no disponible ({e})")
+        return ""
+
+
 def calidad_html(ev: dict, cov=None) -> str:
     rows = []
     for m in ORDEN_MERCADO:
@@ -595,4 +604,4 @@ def calidad_html(ev: dict, cov=None) -> str:
             'cuando baja la proyección ≥ 8% por el contexto, el jugador se queda por debajo de su línea normal con mucha más frecuencia que sin ajuste, '
             'sobre todo en yardas por pase, pases completos, acarreos y yardas por tierra. Las casas de apuestas también usan ese contexto, '
             'así que esto <b>no demuestra ventaja contra la línea real</b>: úsalo como segunda opinión y compara con la línea de tu casa en la calculadora.</p>'
-            + calidad_td_html(ev) + local_visita_html(cov))
+            + calidad_td_html(ev) + local_visita_html(cov) + _props_vivo())

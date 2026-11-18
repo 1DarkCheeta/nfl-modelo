@@ -27,6 +27,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import evaluacion as EV
+
 AQUI = Path(__file__).resolve().parent
 SEMILLA = AQUI / "semilla"
 UMBRAL = 0.02
@@ -180,8 +182,12 @@ def reconstruidas(oos: pd.DataFrame | None, games: pd.DataFrame, cur: int, exclu
 
 
 # ------------------------------------------------------------------------------------------ calificacion
-def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
-    """Una fila por (partido, mercado) con lado elegido, resultado, unidades y CLV. 'valor' = el reporte lo marco."""
+def _apuestas_modo(t: pd.DataFrame, umbral: float, modo: str) -> pd.DataFrame:
+    """Una fila por (partido, mercado) con lado elegido, resultado, unidades y CLV.
+
+    modo="base": la ELECCION del modelo (el favorito en ganador; hacia donde apunta su margen o total esperado en spread y total), valor=False.
+    modo="valor": solo los «posibles valores» (ventaja >= umbral), con el lado que tiene la ventaja (puede ser el otro), valor=True.
+    Asi el acierto de «todas las elecciones» no se mezcla con el de las apuestas con ventaja."""
     filas = []
     for r in t.itertuples():
         for mk in ("ganador", "spread", "total"):
@@ -194,6 +200,10 @@ def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
                 win, push = (r.result > 0) == home, False
                 edge = getattr(r, "ml_edge", np.nan)
                 valor = pd.notna(edge) and edge >= umbral
+                if modo == "valor" and not valor:
+                    continue
+                if modo == "base":
+                    valor = False
                 if valor and isinstance(r.ml_lado, str):          # el lado de valor puede ser el otro
                     home = r.ml_lado.split()[0] == r.home_team
                     pick_p = r.p_gana_local if home else 1 - r.p_gana_local
@@ -209,6 +219,10 @@ def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
                 home = (r.pred_mB > s) if (pd.notna(getattr(r, "pred_mB", np.nan)) and r.pred_mB != s) else r.p_cubre_local >= 0.5
                 edge = getattr(r, "sp_edge", np.nan)
                 valor = pd.notna(edge) and edge >= umbral
+                if modo == "valor" and not valor:
+                    continue
+                if modo == "base":
+                    valor = False
                 if valor and isinstance(r.sp_lado, str):
                     home = r.sp_lado.split()[0] == r.home_team
                 pick_p = r.p_cubre_local if home else 1 - r.p_cubre_local
@@ -226,6 +240,10 @@ def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
                 over = (r.pred_tB > tl) if (pd.notna(getattr(r, "pred_tB", np.nan)) and r.pred_tB != tl) else r.p_over >= 0.5
                 edge = getattr(r, "to_edge", np.nan)
                 valor = pd.notna(edge) and edge >= umbral
+                if modo == "valor" and not valor:
+                    continue
+                if modo == "base":
+                    valor = False
                 if valor and isinstance(r.to_lado, str):
                     over = r.to_lado.upper().startswith("OVER")
                 pick_p = r.p_over if over else 1 - r.p_over
@@ -240,6 +258,11 @@ def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
     b["clv"] = pd.to_numeric(b.clv, errors="coerce")
     b["unid"] = np.where(b.push, 0.0, np.where(b.gana, _payout(b.cuota), -1.0))
     return b
+
+
+def _apuestas(t: pd.DataFrame, umbral: float) -> pd.DataFrame:
+    """Elecciones del modelo (valor=False) + apuestas con ventaja (valor=True), en un solo cuadro."""
+    return pd.concat([_apuestas_modo(t, umbral, "base"), _apuestas_modo(t, umbral, "valor")], ignore_index=True)
 
 
 def _resumen(b: pd.DataFrame) -> dict:
@@ -270,7 +293,7 @@ def calificar(t: pd.DataFrame, umbral: float = UMBRAL) -> dict:
     if t.empty:
         return {"n": 0}
     out = {"n": len(t), "desde": t.gameday.min(), "hasta": t.gameday.max()}
-    # --- calidad de las probabilidades
+    # --- calidad de las probabilidades (log-loss, Brier, ECE y curva de confiabilidad; mercado SIN margen de la casa)
     pr = {}
     g = t[(t.result != 0) & t.p_gana_local.notna()]
     if len(g):
@@ -280,17 +303,21 @@ def calificar(t: pd.DataFrame, umbral: float = UMBRAL) -> dict:
         pr["ganador"] = {"n": len(g), "ll": _ll(g.p_gana_local, y), "br": _brier(g.p_gana_local, y),
                          "ll_mk": _ll(pm[ok], y[ok]) if ok.any() else np.nan, "br_mk": _brier(pm[ok], y[ok]) if ok.any() else np.nan,
                          "n_mk": int(ok.sum()), "cal": _calibracion(g.p_gana_local.values, y),
-                         "ll_mod_mk": _ll(g.p_gana_local.values[ok], y[ok]) if ok.any() else np.nan}
-    c = t[(t.result != t.spread_line) & t.p_cubre_local.notna() & t.spread_line.notna()]
-    if len(c):
-        y = (c.result > c.spread_line).astype(float).values
-        pr["spread"] = {"n": len(c), "ll": _ll(c.p_cubre_local, y), "br": _brier(c.p_cubre_local, y), "ll_mk": float(np.log(2)),
-                        "br_mk": 0.25, "cal": _calibracion(c.p_cubre_local.values, y)}
-    o = t[(t.total != t.total_line) & t.p_over.notna() & t.total_line.notna()]
-    if len(o):
-        y = (o.total > o.total_line).astype(float).values
-        pr["total"] = {"n": len(o), "ll": _ll(o.p_over, y), "br": _brier(o.p_over, y), "ll_mk": float(np.log(2)),
-                       "br_mk": 0.25, "cal": _calibracion(o.p_over.values, y)}
+                         "ll_mod_mk": _ll(g.p_gana_local.values[ok], y[ok]) if ok.any() else np.nan,
+                         "ece": EV.ece(g.p_gana_local.values, y, 5), "ece_mk": EV.ece(pm[ok], y[ok], 5) if ok.any() else np.nan,
+                         "rel": EV.curva(g.p_gana_local.values, y, 5)}
+    for mk, pcol, ycalc, oa, ob, filtro in (
+            ("spread", "p_cubre_local", lambda d: (d.result > d.spread_line), "home_spread_odds", "away_spread_odds",
+             lambda d: (d.result != d.spread_line) & d.p_cubre_local.notna() & d.spread_line.notna()),
+            ("total", "p_over", lambda d: (d.total > d.total_line), "over_odds", "under_odds",
+             lambda d: (d.total != d.total_line) & d.p_over.notna() & d.total_line.notna())):
+        c = t[filtro(t)]
+        if len(c):
+            y = ycalc(c).astype(float).values
+            pm = _devig(c[oa].fillna(PUSH_ODDS).values, c[ob].fillna(PUSH_ODDS).values)
+            pr[mk] = {"n": len(c), "ll": _ll(c[pcol], y), "br": _brier(c[pcol], y), "ll_mk": _ll(pm, y), "br_mk": _brier(pm, y),
+                      "cal": _calibracion(c[pcol].values, y), "ece": EV.ece(c[pcol].values, y, 5), "ece_mk": EV.ece(pm, y, 5),
+                      "rel": EV.curva(c[pcol].values, y, 5)}
     out["prob"] = pr
     # --- ¿acierta mas cuando discrepa mas de la linea?
     dis = {}
@@ -334,43 +361,48 @@ def calificar(t: pd.DataFrame, umbral: float = UMBRAL) -> dict:
     if len(x):
         ing["over"] = float((x.total > x.total_line).mean())
     out["ingenuo"] = ing
-    out["todas"] = {mk: _resumen(b[b.mercado == mk]) for mk in ("ganador", "spread", "total") if (b.mercado == mk).any()}
+    base = b[~b.valor]
+    out["todas"] = {mk: _resumen(base[base.mercado == mk]) for mk in ("ganador", "spread", "total") if (base.mercado == mk).any()}
     v = b[b.valor]
     out["valor"] = {mk: _resumen(v[v.mercado == mk]) for mk in ("ganador", "spread", "total") if (v.mercado == mk).any()}
     out["valor_total"] = _resumen(v) if len(v) else None
     # semana por semana y por origen (en vivo / reconstruida)
     wk = t.set_index("game_id")[["week", "origen"]]
     bb = b.join(wk, on="game_id")
+    bs, vs = bb[~bb.valor], bb[bb.valor]
     filas = []
-    for k, x in bb.groupby("week"):
+    for k, x in bs.groupby("week"):
+        xv = vs[vs.week == k]
         row = {"semana": int(k), "partidos": int(x.game_id.nunique())}
         for mk in ("ganador", "spread", "total"):
             y = x[(x.mercado == mk) & ~x.push]
             row[mk] = float(y.gana.mean()) if len(y) else np.nan
         row["unid"] = float(x.unid.sum())
-        row["unid_valor"] = float(x[x.valor].unid.sum())
-        row["n_valor"] = int(x.valor.sum())
+        row["unid_valor"] = float(xv.unid.sum())
+        row["n_valor"] = int(len(xv))
         row["en_vivo"] = int((t[t.week == k].origen == "en vivo").sum())
         filas.append(row)
     out["semanas"] = pd.DataFrame(filas)
     po = {}
-    for k, x in bb.groupby("origen"):
-        y = {"partidos": int(x.game_id.nunique()), "unid": float(x.unid.sum()), "unid_valor": float(x[x.valor].unid.sum()),
-             "n_valor": int(x.valor.sum())}
+    for k, x in bs.groupby("origen"):
+        xv = vs[vs.origen == k]
+        y = {"partidos": int(x.game_id.nunique()), "unid": float(x.unid.sum()), "unid_valor": float(xv.unid.sum()),
+             "n_valor": int(len(xv))}
         for mk in ("ganador", "spread", "total"):
             z = x[(x.mercado == mk) & ~x.push]
             y[mk] = float(z.gana.mean()) if len(z) else np.nan
         po[k] = y
     out["origen"] = po
-    out["todas_total"] = _resumen(b) if len(b) else None
+    out["todas_total"] = _resumen(base) if len(base) else None
     return out
 
 
-def referencia_backtest(oos: pd.DataFrame | None, desde: int = 2013, umbral: float = UMBRAL) -> dict | None:
+def referencia_backtest(oos: pd.DataFrame | None, desde: int = 2016, umbral: float = UMBRAL) -> dict | None:
     """Mismas metricas con las predicciones fuera de muestra (walk-forward) de temporadas pasadas."""
     if oos is None or oos.empty:
         return None
-    d = oos[(oos.season >= desde) & oos.result.notna()].copy()
+    hasta = int(oos.season.max()) - 1                      # la temporada en curso es validacion final: no entra aqui
+    d = oos[(oos.season >= desde) & (oos.season <= hasta) & oos.result.notna()].copy()
     col = lambda b: f"{b}_B_cal" if f"{b}_B_cal" in d.columns else f"{b}_B"
     out = {"desde": desde, "hasta": int(d.season.max())}
     pw, pc, po = col("pwin"), col("pcov"), col("pover")
@@ -409,6 +441,7 @@ def referencia_backtest(oos: pd.DataFrame | None, desde: int = 2013, umbral: flo
                    "se": float(u[sel].std() * np.sqrt(sel.sum())) if sel.sum() > 1 else np.nan,
                    "acierto": float(win[sel & ~push].mean()) if (sel & ~push).any() else np.nan}
     out["prob"], out["valor"] = r, roi
+    out["eval"] = EV.evaluar(oos, range(desde, hasta + 1), umbral)
     m = d[d.spread_line.notna() & d.pred_mB.notna()]
     out["mae"] = {"margen": {"n": len(m), "mercado": float(np.mean(np.abs(m.result - m.spread_line))),
                              "B": float(np.mean(np.abs(m.result - m.pred_mB))),
@@ -487,7 +520,7 @@ def _fila_mercado(mk: str, res: dict) -> str:
     clv = "–"
     if a["clv_n"]:
         u = "pts de %" if mk == "ganador" else "pts"
-        clv = f"{a['clv']:+.2f} {u} ({a['clv_pos']}↑ / {a['clv_neg']}↓ de {a['clv_n']})"
+        clv = f"{a['clv']:+.2f} {u} ({a['clv_pos']}↑ / {a['clv_neg']}↓ / {a['clv_n'] - a['clv_pos'] - a['clv_neg']}= de {a['clv_n']})"
     llm = f"{pr['ll']:.3f} vs {pr['ll_mk']:.3f}" if pr and pd.notna(pr.get("ll_mk")) else (f"{pr['ll']:.3f}" if pr else "–")
     val = (f"{v['n']} apuestas · {_pc(v['acierto'])} · {_un(v['unid'])} u") if v else "ninguna marcada"
     return (f"<tr><td><b>{MK_NOMBRE[mk]}</b></td><td>{a['n']}</td><td>{_pc(a['acierto'])}<br><small>95 %: {ci}</small></td>"
@@ -508,15 +541,50 @@ def _dis_html(res: dict) -> str:
             '<p class="explain">Si el modelo supiera algo que el mercado no, el acierto debería subir cuando se aleja más de la línea. Si es plano o baja, esa diferencia es ruido.</p>')
 
 
+def _curva_svg(rel: pd.DataFrame, titulo: str, w: int = 250, h: int = 250) -> str:
+    """Curva de confiabilidad: eje X = lo que dijo el modelo, eje Y = lo que paso; la diagonal es la calibracion perfecta."""
+    if rel is None or rel.empty:
+        return ""
+    lo = float(min(rel.dijo.min(), rel.paso.min(), 0.35)); hi = float(max(rel.dijo.max(), rel.paso.max(), 0.65))
+    lo, hi = max(0.0, np.floor(lo * 20) / 20), min(1.0, np.ceil(hi * 20) / 20)
+    m = 34
+    X = lambda v: m + (w - m - 8) * (v - lo) / (hi - lo)
+    Y = lambda v: 8 + (h - m - 8) * (hi - v) / (hi - lo)
+    sv = [f'<svg viewBox="0 0 {w} {h}" style="width:100%;max-width:{w}px;height:auto" role="img" aria-label="{html.escape(titulo)}">']
+    paso_t = 0.1 if hi - lo > 0.35 else 0.05
+    for v in np.arange(np.ceil(lo / paso_t - 1e-9) * paso_t, hi + 1e-9, paso_t):
+        sv.append(f'<line x1="{m}" x2="{w - 8}" y1="{Y(v):.1f}" y2="{Y(v):.1f}" stroke="currentColor" opacity=".12"/>'
+                  f'<text x="{m - 4}" y="{Y(v) + 3.5:.1f}" font-size="9.5" text-anchor="end" fill="currentColor" opacity=".7">{v * 100:.0f}</text>'
+                  f'<text x="{X(v):.1f}" y="{h - m + 14}" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".7">{v * 100:.0f}</text>')
+    sv.append(f'<line x1="{X(lo):.1f}" y1="{Y(lo):.1f}" x2="{X(hi):.1f}" y2="{Y(hi):.1f}" stroke="currentColor" opacity=".5" stroke-dasharray="4 3"/>')
+    pts = " ".join(f"{X(a):.1f},{Y(b):.1f}" for a, b in zip(rel.dijo, rel.paso))
+    sv.append(f'<polyline points="{pts}" fill="none" stroke="#2a78d6" stroke-width="2"/>')
+    for a, b, n in zip(rel.dijo, rel.paso, rel.n):
+        sv.append(f'<circle cx="{X(a):.1f}" cy="{Y(b):.1f}" r="{3 + min(4, n / 40):.1f}" fill="#2a78d6"><title>dijo {a * 100:.1f} % · pasó {b * 100:.1f} % · {n} partidos</title></circle>')
+    sv.append(f'<text x="{(m + w) / 2:.0f}" y="{h - 4}" font-size="10" text-anchor="middle" fill="currentColor" opacity=".75">lo que dijo el modelo (%)</text></svg>')
+    return f'<div><h4>{html.escape(titulo)}</h4><div class="chart" style="color:var(--ink)">{"".join(sv)}</div></div>'
+
+
 def _cal_html(res: dict) -> str:
-    bloques = []
-    for mk in ("ganador",):
+    """Brier, ECE y curva de confiabilidad de ganador, spread y total (modelo vs mercado sin margen de la casa)."""
+    filas, curvas = [], []
+    for mk in ("ganador", "spread", "total"):
         pr = res["prob"].get(mk)
-        if not pr or not pr["cal"]:
+        if not pr:
             continue
-        filas = "".join(f"<tr><td>{c['rango']}</td><td>{c['n']}</td><td>{_pc(c['dijo'])}</td><td>{_pc(c['paso'])}</td></tr>" for c in pr["cal"])
-        bloques.append(f"<div><h4>{MK_NOMBRE[mk]}</h4><table><thead><tr><th>Probabilidad dada al local / over</th><th>Partidos</th><th>Promedio que dijo</th><th>Pasó</th></tr></thead><tbody>{filas}</tbody></table></div>")
-    return f'<div class="grid2">{"".join(bloques)}</div>' if bloques else ""
+        filas.append(f"<tr><td><b>{MK_NOMBRE[mk]}</b></td><td>{pr['n']}</td><td>{pr['br']:.4f} vs {pr['br_mk']:.4f}</td>"
+                     f"<td>{_pc(pr['ece'], 1)} vs {_pc(pr['ece_mk'], 1)}</td><td>{pr['ll']:.4f} vs {pr['ll_mk']:.4f}</td></tr>")
+        curvas.append(_curva_svg(pr.get("rel"), MK_NOMBRE[mk]))
+    if not filas:
+        return ""
+    return ('<h3 style="margin-top:1.2em">Calibración: Brier, ECE y curva de confiabilidad (modelo vs mercado)</h3>'
+            '<div style="overflow-x:auto"><table><thead><tr><th>Mercado</th><th>Partidos</th><th>Brier (menos es mejor)</th><th>ECE (menos es mejor)</th><th>Log-loss</th></tr></thead>'
+            f'<tbody>{"".join(filas)}</tbody></table></div>'
+            f'<div class="grid3" style="margin-top:.8em">{"".join(curvas)}</div>'
+            '<p class="explain"><b>Cómo leerlo:</b> cada punto es un grupo de partidos con el mismo número de casos; la línea punteada es la calibración perfecta (si el modelo dice 60 %, pasa el 60 %). '
+            'El <b>ECE</b> es el promedio de la distancia entre lo que dijo el modelo y lo que pasó (0 % = perfecto). «Mercado» es la probabilidad de la cuota sin el margen de la casa. '
+            'Con pocos partidos los puntos se mueven mucho: mira primero el tamaño del grupo (el círculo) y la tabla de referencia histórica. '
+            'Para spread y total el mercado dice casi siempre 50 %, así que el modelo solo aporta algo si se separa de 50 % <i>y</i> acierta cuando lo hace.</p>')
 
 
 def _grafica(b: pd.DataFrame) -> str:
@@ -524,7 +592,7 @@ def _grafica(b: pd.DataFrame) -> str:
     if b.empty:
         return ""
     series = []
-    for nombre, x, col in (("Todas las apuestas (lado que favorece el modelo)", b, "#2a78d6"),
+    for nombre, x, col in (("Todas las elecciones del modelo (1 u cada una)", b[~b.valor], "#2a78d6"),
                            ("Solo «posibles valores»", b[b.valor], "#eb6834")):
         if x.empty:
             continue
@@ -572,7 +640,7 @@ def _mae_html(res: dict) -> str:
     if not filas:
         return ""
     return ('<h3 style="margin-top:1.2em">Error medio en puntos (menos es mejor)</h3>'
-            '<table><thead><tr><th></th><th>Partidos</th><th>Línea del mercado</th><th>Modelo B (el de decisión)</th><th>Modelo A (sin mercado)</th></tr></thead>'
+            '<table><thead><tr><th>Qué se mide</th><th>Partidos</th><th>Línea del mercado</th><th>Modelo B (el de decisión)</th><th>Modelo A (sin mercado)</th></tr></thead>'
             f'<tbody>{"".join(filas)}</tbody></table>'
             '<p class="explain">Si el modelo B no baja del error de la línea, no está viendo nada que el mercado no vea.</p>')
 
@@ -639,13 +707,26 @@ def _ref_html(ref: dict | None) -> str:
               f"<br><small>el azar solo mueve ±{v['se']:.0f} u; resultado = {v['unid'] / v['se']:+.1f} veces ese margen</small>") if v and v.get("se") else "–"
         llm = f"{p['ll']:.3f} vs {p['ll_mk']:.3f}" if pd.notna(p.get("ll_mk")) else f"{p['ll']:.3f}"
         filas.append(f"<tr><td><b>{MK_NOMBRE[mk]}</b></td><td>{p['n']:,}</td><td>{_pc(p['acierto'], 1)}</td><td>{llm}</td><td>{vt if mk != 'ganador' else '–'}</td></tr>")
+    ev_t = ""
+    if ref.get("eval"):
+        fi = []
+        for mk, r_ in ref["eval"].items():
+            td_, vl_ = r_["todas"], r_["valor"]
+            fi.append(f"<tr><td><b>{MK_NOMBRE[mk]}</b></td><td>{r_['n']:,}</td><td>{r_['br']:.4f} vs {r_['br_mk']:.4f}</td><td>{_pc(r_['ece'], 1)} vs {_pc(r_['ece_mk'], 1)}</td>"
+                      f"<td>{_pc(td_['acierto'], 1)} · ROI {td_['roi'] * 100:+.1f} %<br><small>IC 95 %: {td_['lo'] * 100:+.1f} a {td_['hi'] * 100:+.1f} %</small></td>"
+                      f"<td>{vl_['n']:,} apuestas · {_pc(vl_['acierto'], 1)} · ROI {vl_['roi'] * 100:+.1f} %<br><small>IC 95 %: "
+                      + (f"{vl_['lo'] * 100:+.1f} a {vl_['hi'] * 100:+.1f} %" if vl_['n'] > 1 else "–") + "</small></td></tr>")
+        ev_t = ('<h4 style="margin-top:1em">Brier, ECE y ROI con intervalo de confianza (bootstrap de 2,000 remuestreos)</h4><div style="overflow-x:auto"><table><thead><tr><th>Mercado</th><th>Partidos</th>'
+                '<th>Brier modelo vs mercado</th><th>ECE modelo vs mercado</th><th>Todas las elecciones (acierto · ROI)</th><th>Solo con ventaja ≥ '
+                f'{UMBRAL * 100:.0f} pts</th></tr></thead><tbody>{"".join(fi)}</tbody></table></div>'
+                '<p class="explain">Si el intervalo de confianza del ROI incluye el 0 % (y casi siempre lo incluye), el resultado no se distingue del azar.</p>')
     return (f'<details class="mc-ref"><summary><b>Referencia: el mismo examen en el historial {ref["desde"]}–{ref["hasta"]} (fuera de muestra)</b></summary>'
             '<p class="explain">Predicciones hechas solo con datos anteriores a cada partido (walk-forward), con cuotas de la época. '
             'Es la vara contra la que se compara lo que va en vivo: con miles de partidos el azar casi desaparece. '
             'Ojo con los «posibles valores»: se eligen por ventaja sobre el precio, y con probabilidades cercanas a 50 % eso favorece a los lados con cuota asimétrica (por ejemplo +105 contra −125). '
             'Un resultado de 1–2 veces el margen del azar <b>no confirma</b> una ventaja; para fiarse hace falta que se repita en vivo y con CLV positivo.</p>'
             '<div style="overflow-x:auto"><table><thead><tr><th>Mercado</th><th>Partidos</th><th>Acierto del lado del modelo</th><th>Log-loss modelo vs mercado</th>'
-            f'<th>«Posibles valores» (ventaja ≥ {UMBRAL * 100:.0f} pts)</th></tr></thead><tbody>{"".join(filas)}</tbody></table></div></details>')
+            f'<th>«Posibles valores» (ventaja ≥ {UMBRAL * 100:.0f} pts)</th></tr></thead><tbody>{"".join(filas)}</tbody></table></div>{ev_t}</details>')
 
 
 def _origen_txt(res: dict) -> str:
@@ -745,6 +826,14 @@ def _record_html(res: dict, nombre=lambda t: t) -> str:
         if len(vivo) and len(vivo) < len(R):
             wv, lv, _ = _wl(vivo)
             extra = f'<br><small>solo guardadas antes del partido: {wv}-{lv}</small>'
+        mk_ = {"g_ok": "ganador", "s_ok": "spread", "t_ok": "total"}[col]
+        vv = res["apuestas"]
+        vv = vv[vv.valor & (vv.mercado == mk_) & ~vv.push]
+        if len(vv):
+            extra += (f'<br><small><b>Solo con ventaja ≥ {res["umbral"] * 100:.0f} pts:</b> {int(vv.gana.sum())}-{int((~vv.gana).sum())} '
+                      f'({_un(float(vv.unid.sum()))} u)</small>')
+        else:
+            extra += f'<br><small><b>Solo con ventaja ≥ {res["umbral"] * 100:.0f} pts:</b> ninguna apuesta alcanzó esa ventaja</small>'
         ult = "".join(('<i class="rk-w">●</i>' if bool(v) else '<i class="rk-l">●</i>') for v in R[col].dropna().tail(10))
         tarjetas.append(
             f'<div class="rk-card"><span class="rk-t">{ttl}</span><b class="rk-n">{w}-{l}{f"-{e}" if e else ""}</b>'
@@ -764,7 +853,8 @@ def _record_html(res: dict, nombre=lambda t: t) -> str:
                 celdas.append("<td>–</td>")
         filas.append(f"<tr><td><b>{int(k)}</b></td><td>{len(x)}</td>{''.join(celdas)}</tr>")
     semanas = ('<h3 style="margin-top:1em">Récord semana por semana</h3><div style="overflow-x:auto"><table><thead><tr><th>Semana</th><th>Partidos</th>'
-               '<th>Ganador</th><th>Spread</th><th>Over / Under</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>")
+               '<th>Ganador</th><th>Spread</th><th>Over / Under</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>"
+               '<p class="rk-leg">Formato <b>ganadas-perdidas</b>; un tercer número es un <b>empate</b> (ganador) o un <b>push</b> (spread o total: la línea cayó exacta y se devuelve la apuesta).</p>')
     # --- cada eleccion
     lin = []
     for r in R.sort_values(["fecha", "game_id"], ascending=False).itertuples():
@@ -781,7 +871,7 @@ def _record_html(res: dict, nombre=lambda t: t) -> str:
     return (f'<h3 id="record" style="margin-top:1em">Récord de elecciones del modelo en la temporada</h3>'
             '<p class="explain">En cada partido el modelo elige un lado; aquí se cuenta cuántas veces acertó (<b>ganadas-perdidas</b>, y empates/push al final si los hay). '
             'El récord de «Ganador» es el de las veces que el equipo elegido ganó el partido, sin importar cuánto pagaba: elegir al favorito acierta mucho más que apostar con ventaja. '
-            'Para saber si de verdad hay ventaja hay que ver también las unidades y el CLV de más abajo. (La columna «Ganador» de la tabla de abajo puede diferir un poco: ahí, si el reporte marcó un «posible valor», se cuenta el lado con ventaja aunque no sea el favorito.)</p>'
+            'Cada tarjeta trae <b>dos vistas</b>: «todas las elecciones» (el número grande) y «solo con ventaja» (la línea de abajo: las apuestas donde el modelo veía al menos el umbral de ventaja sobre la cuota); el spread no debe juzgarse por partidos donde el modelo casi coincide con la línea. Para saber si de verdad hay ventaja hay que ver también las unidades y el CLV de más abajo. (La columna «Ganador» de la tabla de abajo puede diferir un poco: ahí, si el reporte marcó un «posible valor», se cuenta el lado con ventaja aunque no sea el favorito.)</p>'
             f'{_estado_record(res)}<div class="rk-grid">{"".join(tarjetas)}</div>{semanas}{detalle}')
 
 
@@ -834,6 +924,8 @@ CSS = """
 .mc-t small,.mc-ref small{color:var(--ink2)}.mc-ayuda,.mc-ref{margin:.6em 0}
 .rk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:.8em 0}.rk-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
 .rk-est{margin:.5em 0;padding:8px 12px;border-left:4px solid var(--blue);background:var(--card);border-radius:8px;font-size:.92rem}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(max-width:700px){.grid3{grid-template-columns:1fr}}
+.rk-leg{font-size:.85rem;color:var(--ink2);margin:.4em 0}
 .rk-t{font-weight:700}.rk-n{font-size:2.3rem;line-height:1.1;letter-spacing:.5px}.rk-p{font-size:.9rem}.rk-d,.rk-d small{color:var(--ink2);font-size:.8rem}
 .rk-f{margin-top:4px;letter-spacing:2px;font-size:.9rem}.rk-f i{font-style:normal}.rk-w{color:#0a7d3c}.rk-l{color:#b3261e}.rk-pu{color:var(--ink2)}.rk-det{margin:.8em 0}
 @media(max-width:700px){.rk-grid{grid-template-columns:1fr}}

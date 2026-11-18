@@ -215,7 +215,7 @@ function lado(A,B){ // ofensiva de A contra la defensa de B
  var pu=(ov(A,'jug')!=null&&ov(A,'ppj')!=null&&dv(B,'ppj')!=null)?projPts(ov(A,'jug'),ov(A,'ppj'),dv(B,'ppj')):null;
  function row(l,k,dec,proj){return '<tr><td>'+l+'</td><td>'+fm(ov(A,k),dec)+'</td><td>'+fm(dv(B,k),dec)+'</td><td class="pr">'+(proj==null?'—':fm(proj,dec))+'</td></tr>';}
  var h='<h4>Ofensiva de '+H(D.teams[A])+' ('+o[0]+' partidos) contra la defensa de '+H(D.teams[B])+' ('+d[0]+' partidos)</h4>'+
-  '<table><tr><th></th><th>'+A+' produce</th><th>'+B+' permite</th><th>Proyección</th></tr>'+
+  '<table><tr><th>Métrica</th><th>'+A+' produce</th><th>'+B+' permite</th><th>Proyección</th></tr>'+
   row('Puntos','pts',1,pu)+row('Jugadas','jug',1,null)+row('Pts por jugada','ppj',3,null)+
   row('Yardas de pase','pyd',1,pp)+row('Completos','cmp',1,null)+row('Yds por completo','ypc',2,null)+
   row('Yardas por tierra','ryd',1,pt)+row('Acarreos','car',1,null)+row('Yds por acarreo','ypa',2,null)+
