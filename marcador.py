@@ -715,6 +715,16 @@ def _marca(v) -> str:
         '<span class="rk-w">✔ ganó</span>' if v else '<span class="rk-l">✘ perdió</span>')
 
 
+def _estado_record(res: dict) -> str:
+    """Linea de estado: el record se recalcula solo en cada corrida del reporte."""
+    ult = pd.Timestamp(res["hasta"]).strftime("%d/%m/%Y") if res.get("hasta") is not None else "–"
+    pend = res.get("pendientes", 0)
+    esp = (f" Hay <b>{pend}</b> partido(s) con elección ya guardada esperando su resultado: entrarán al récord en la primera corrida después de jugarse."
+           if pend else "")
+    return ('<p class="explain rk-est"><b>Se actualiza solo:</b> en cada corrida del reporte (martes, jueves, sábado y domingo) cada partido terminado entra al récord con la '
+            f'<b>última elección que hizo el modelo antes del kickoff</b>; nada se cambia después de que se juega. Último partido contado: {ult}.{esp}</p>')
+
+
 def _record_html(res: dict, nombre=lambda t: t) -> str:
     t = res.get("tabla")
     if t is None or t.empty:
@@ -772,7 +782,7 @@ def _record_html(res: dict, nombre=lambda t: t) -> str:
             '<p class="explain">En cada partido el modelo elige un lado; aquí se cuenta cuántas veces acertó (<b>ganadas-perdidas</b>, y empates/push al final si los hay). '
             'El récord de «Ganador» es el de las veces que el equipo elegido ganó el partido, sin importar cuánto pagaba: elegir al favorito acierta mucho más que apostar con ventaja. '
             'Para saber si de verdad hay ventaja hay que ver también las unidades y el CLV de más abajo. (La columna «Ganador» de la tabla de abajo puede diferir un poco: ahí, si el reporte marcó un «posible valor», se cuenta el lado con ventaja aunque no sea el favorito.)</p>'
-            f'<div class="rk-grid">{"".join(tarjetas)}</div>{semanas}{detalle}')
+            f'{_estado_record(res)}<div class="rk-grid">{"".join(tarjetas)}</div>{semanas}{detalle}')
 
 
 def html_marcador(res: dict | None, nombre=lambda t: t) -> str:
