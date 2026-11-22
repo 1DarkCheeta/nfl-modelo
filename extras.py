@@ -309,15 +309,15 @@ def csv_td(P: pd.DataFrame, cres: dict | None = None, cur: int | None = None) ->
     out = pd.DataFrame({"equipo": t.team, "rival": t.opp, "localia": np.where(t.is_home == 1, "local", "visita"),
                         "jugador": t.name, "posicion": t.position, "rol_depth": t.rol.replace("", "fuera del depth chart"),
                         "estado_lesion": t.estado.replace("", "sin reporte"),
-                        "prob_anotar_%": (t.p_td * 100).round(1), "cuota_justa_americana": t.p_td.map(cuota_justa),
+                        "prob_anotar_%": (t.p_td * 100).round(1), "cuota_justa_decimal": t.p_td.map(cuota_justa),
                         "tds_por_partido_reciente": t.base.round(2), **cols})
     return out.sort_values(["equipo", "prob_anotar_%"], ascending=[True, False]).reset_index(drop=True)
 
 
-def cuota_justa(p: float) -> int:
-    """Cuota americana sin comision que corresponde a una probabilidad p."""
+def cuota_justa(p: float) -> float:
+    """Cuota DECIMAL sin comision que corresponde a una probabilidad p (1 / p)."""
     p = min(max(float(p), 0.01), 0.99)
-    return int(round(-100 * p / (1 - p))) if p >= 0.5 else int(round(100 * (1 - p) / p))
+    return round(1.0 / p, 2)
 
 
 def csv_valor_casas(V: pd.DataFrame) -> pd.DataFrame:

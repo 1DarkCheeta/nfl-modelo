@@ -1,0 +1,55 @@
+/* ==========================================================================
+   tokens.css — ÚNICO archivo de diseño base del reporte NFL.
+   Un solo tema: negro con bordes azul platinado (decisión del usuario, 18-nov-2026).
+   Nada de colores sueltos en otros archivos: todo sale de estas variables.
+   Contraste verificado (WCAG): texto >= 4.5:1, bordes/íconos >= 3:1 (contraste.json).
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* Fondos */
+  --bg:        #000000;   /* fondo de página: negro */
+  --surface:   #070A0F;   /* cajas */
+  --surface-2: #0E131B;   /* cajas elevadas / filas alternas */
+  --surface-3: #151C27;   /* campos, hover */
+
+  /* Bordes azul platinado */
+  --border:        #8AA0BF;  /* borde de caja */
+  --border-strong: #C3D1E6;  /* borde resaltado / foco / activo */
+  --border-subtle: #2B3647;  /* separadores internos (no son el borde de caja) */
+  /* Brillo metálico del borde: la parte MÁS oscura (#5F7799) sigue dando >= 3:1 sobre negro */
+  --metal: linear-gradient(135deg, #D5E0F0 0%, #8AA0BF 38%, #5F7799 62%, #B9C8DE 100%);
+
+  /* Texto */
+  --text:   #F3F6FB;
+  --text-2: #A9B5C7;
+
+  /* Acento (pestaña activa, botón principal, barra del modelo) */
+  --accent:    #C3D1E6;
+  --on-accent: #05080D;
+
+  /* Semántica FIJA en todo el sitio (siempre con ícono o texto, nunca solo color) */
+  --valor:      #3DDC84;  --valor-bg:   #0B2A1A;  /* ✔ posible valor */
+  --neutral:    #A3ADBB;  --neutral-bg: #161B23;  /* — sin ventaja */
+  --aviso:      #FFB547;  --aviso-bg:   #2D2006;  /* ⚠ precaución / histórico no rentable */
+  --contra:     #FF7A7A;  --contra-bg:  #331012;  /* ✖ en contra */
+  --info:       #66B3FF;  --info-bg:    #0C2238;  /* ⓘ información */
+
+  --shadow: 0 1px 0 rgba(255,255,255,.04), 0 6px 18px rgba(0,0,0,.55);
+}
+
+:root {
+  /* Tipografía: una sola familia sans (Inter si está instalada; si no, la del sistema; sin descargas) */
+  --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fs-12: 12px;  --fs-14: 14px;  --fs-15: 15px;  --fs-17: 17px;  --fs-20: 20px;  --fs-24: 24px;  --fs-32: 32px;
+  --lh: 1.45;
+
+  /* Espaciado: escala de 4 px */
+  --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;  --s5: 20px;  --s6: 24px;  --s8: 32px;
+
+  /* Radios y objetivos táctiles */
+  --r: 12px;  --r-sm: 10px;  --r-pill: 999px;
+  --touch: 44px;
+  --borde-ancho: 1.5px;
+}

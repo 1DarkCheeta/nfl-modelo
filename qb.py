@@ -17,6 +17,7 @@ Lo que NO hace (a proposito)
 from __future__ import annotations
 
 import html
+import re
 
 import numpy as np
 import pandas as pd
@@ -121,9 +122,9 @@ def analizar(r: dict, extras: dict | None, log=print) -> dict:
                 if (team, hab["id"]) in se_fue:
                     why = f"{hab['name']} (traspasado a {se_fue[(team, hab['id'])]})"
                 elif hab_fuera:
-                    why = f"{hab['name']} ({'baja' if hab_fuera[0] == 'Out' else 'dudoso'}{' · ' + hab_fuera[1] if hab_fuera[1] else ''})"
+                    why = f"{hab['name']} ({'baja' if hab_fuera[0] == 'Out' else 'dudoso'}{' · ' + _fecha_legible(hab_fuera[1]) if hab_fuera[1] else ''})"
                 else:
-                    why = f"{hab['name']} no aparece como lesionado esta semana (puede ser decisión técnica o lesión larga)"
+                    why = f"{hab['name']} (no aparece como lesionado esta semana: puede ser decisión técnica o lesión larga)"
                 dn = "sin historial: contado como mariscal promedio, puede ser optimista" if d["sin_hist"] else f"{d['esperado']['n_prior']} partidos previos"
                 if (team, exp.player_id) in llego:
                     dn += f"; llegó por traspaso desde {llego[(team, exp.player_id)]} y aún no juega con el equipo"
@@ -195,7 +196,19 @@ def nota_juego(an: dict | None, game_id: str) -> str:
     a = (an or {}).get(game_id)
     if not a or not a["avisos"]:
         return ""
-    return ('<div class="qbnota"><b>Mariscales:</b> ' + " ".join(html.escape(t) for t in a["avisos"]) + "</div>")
+    return ('<div class="qbnota"><b>Mariscales:</b><ul>' + "".join(f"<li>{html.escape(t)}</li>" for t in a["avisos"]) + "</ul></div>")
+
+
+def _fecha_legible(txt: str) -> str:
+    """«2026-11-16» -> «reporte del 16/11» (solo presentacion; el dato guardado no cambia)."""
+    return re.sub(r"(\d{4})-(\d{2})-(\d{2})", lambda m: f"reporte del {m.group(3)}/{m.group(2)}", txt)
+
+
+def _peso_elo(dpts: float, team: str) -> str:
+    """Texto del «peso según Elo» con dirección: + = el mariscal que abre es mejor que el habitual (favorece a su equipo)."""
+    if abs(dpts) < 0.05:
+        return "peso según Elo: sin diferencia (0.0 pts)"
+    return f"peso según Elo: {'favorece' if dpts > 0 else 'perjudica'} a {html.escape(team)} por {abs(dpts):.1f} pts"
 
 
 def _celda(d: dict) -> str:
@@ -206,7 +219,7 @@ def _celda(d: dict) -> str:
     h = d["habitual"]
     sub = ""
     if d["estado"] == "cambio" and h:
-        sub = f'<small>habitual: {html.escape(h["name"])} · peso según Elo {d["dpts"]:+.1f} pts{" (sin historial)" if d["sin_hist"] else ""}</small>'
+        sub = f'<small>habitual: {html.escape(h["name"])} · {_peso_elo(d["dpts"], d["team"])}{" (sin historial)" if d["sin_hist"] else ""}</small>'
     elif d["estado"] == "duda":
         sub = f'<small>{html.escape(e["estado"])} · juega ≈{e["p_juega"] * 100:.0f}%</small>'
     elif d["estado"] == "regresa":
@@ -222,7 +235,7 @@ def html_qb(an: dict, med: dict | None, nombre=lambda t: t) -> str:
     filas = []
     for gid, a in juegos:
         h, v = a["home"], a["away"]
-        marca = "⚠ " if a["alerta"] else ""
+        marca = '<span class="qb-ic" title="Hay aviso de mariscal en este partido">⚠</span>' if a["alerta"] else '<span class="qb-ic"></span>'
         tit = f'{marca}{html.escape(nombre(v["team"]))} @ {html.escape(nombre(h["team"]))}'
         filas.append(f'<tr class="{"qb-al" if a["alerta"] else ""}"><td class="l">{tit}</td>{_celda(v)}{_celda(h)}</tr>')
     tabla = ('<div class="scroll"><table class="qbt"><thead><tr><th class="l">Partido</th><th class="l">Visita: mariscal que abre</th>'
@@ -239,7 +252,7 @@ def html_qb(an: dict, med: dict | None, nombre=lambda t: t) -> str:
                 f'<b>Conclusión:</b> no corrijo las probabilidades por el cambio de QB; la línea ya lo incluye. Esta tabla sirve para <b>enterarte</b>, no para apostar contra el mercado.</p></div>')
     return f"""<h2 id="qb">Mariscales: ¿juega el titular?</h2>
 <p class="explain">Para cada partido de esta semana, el mariscal que usan los props (Kalshi, Ourlads o depth chart, sin los lesionados) frente al titular habitual del equipo (el que abrió más de los últimos {VENTANA} partidos).
-<b>{n_al} partido(s) con aviso</b> ⚠ (arriba). «Peso según Elo» es cuántos puntos de spread vale el cambio según el Elo de los mariscales; con QB sin historial es solo una referencia optimista.
+<b>{n_al} partido(s) con aviso</b> ⚠ (arriba). «Peso según Elo» es cuántos puntos de spread vale el cambio según el Elo de los mariscales: <b>«favorece a X por N pts»</b> = el mariscal que abre es mejor que el habitual (signo +); <b>«perjudica a X»</b> = es peor (signo −). Con QB sin historial es solo una referencia optimista.
 Los props de un QB con pocos partidos usan el promedio de debutantes de su ronda del draft y tienen más incertidumbre.</p>
 {tabla}
 {hist}"""
@@ -248,7 +261,7 @@ Los props de un QB con pocos partidos usan el promedio de debutantes de su ronda
 CSS = """
 .qbt{width:100%;border-collapse:collapse;font-size:.88rem}.qbt th,.qbt td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .qbt td.l,.qbt th.l{text-align:left}.qbt small{display:block;color:var(--ink2);font-size:.74rem}
-.qbt tr.qb-al td:first-child{font-weight:600}.qbt td.qb-c{background:rgba(217,130,43,.16)}.qbt td.qb-d{background:rgba(214,176,40,.16)}.qbt td.qb-r{background:rgba(74,127,181,.12)}
+.qbt tr.qb-al td:first-child{font-weight:600}.qb-ic{display:inline-block;width:1.4em}.qbt td,.qbt th{vertical-align:top}.qbnota ul{margin:.2em 0 0 1.1em;padding:0}.qbt td.qb-c{background:rgba(217,130,43,.16)}.qbt td.qb-d{background:rgba(214,176,40,.16)}.qbt td.qb-r{background:rgba(74,127,181,.12)}
 .qbnota{font-size:.82rem;background:rgba(217,130,43,.14);border-radius:8px;padding:6px 8px;margin:6px 0}
 .pqb{background:rgba(217,130,43,.14);border-radius:8px;padding:6px 8px}
 """

@@ -127,7 +127,7 @@ def csv_equipos(T: pd.DataFrame) -> pd.DataFrame:
 def _chips(r) -> str:
     out = ""
     if r.estado == "Questionable" and r.p_juega < 0.995:
-        out += f'<span class="est" title="Probabilidad de jugar; OVER/UNDER son «si juega»">juega ~{r.p_juega * 100:.0f}%</span>'
+        out += f'<span class="est" title="Probabilidad de jugar; Más de / Menos de son «si juega»">juega ~{r.p_juega * 100:.0f}%</span>'
     elif r.estado:
         out += f'<span class="est">{html.escape({"Out": "Baja", "Doubtful": "Dudoso", "Questionable": "Dudoso"}.get(r.estado, r.estado))}</span>'
     if r.n_prior < 2:
@@ -136,36 +136,43 @@ def _chips(r) -> str:
 
 
 def _barra(p: float) -> str:
-    """Barra de dos colores: la parte llena es OVER (o «anota»); el resto, UNDER."""
-    return f'<span class="bar2" title="OVER {p * 100:.0f}% · UNDER {(1 - p) * 100:.0f}%"><i style="width:{p * 100:.0f}%"></i></span>'
+    """Barra de dos colores: la parte llena es «Más de» (o «anota»); el resto, «Menos de»."""
+    return f'<span class="bar2" title="Más de {p * 100:.0f}% · Menos de {(1 - p) * 100:.0f}%"><i style="width:{p * 100:.0f}%"></i></span>'
+
+
+def _rol_pe(r) -> str:
+    """Misma etiqueta de rol que en las demas tablas: «WR1»; si no esta en el depth chart, «WR (sin depth)»."""
+    d = str(r.rol_depth or "").strip()
+    pos = r.rol if r.rol in ("QB", "WR", "RB") else (getattr(r, "pos", "") if isinstance(getattr(r, "pos", ""), str) else "")
+    return html.escape(d if d and d != "fuera del depth chart" else (f"{pos} (sin depth)" if pos else "sin depth"))
 
 
 def _fila_yds(r) -> str:
-    over, lado = r.p_over, "OVER" if r.p_over >= 0.5 else "UNDER"
+    over, lado = r.p_over, "Más de" if r.p_over >= 0.5 else "Menos de"
     pl = max(over, 1 - over)
     fuerte = " fuerte" if pl >= 0.60 else ""
     if r.fuente_linea == "Kalshi":
-        fu = (f'<small class="auto">Kalshi</small>' + (f' <small>(mercado {r.p_mercado * 100:.0f}% over · modelo {r.p_modelo * 100:.0f}%)</small>' if pd.notna(r.p_mercado) else ""))
+        fu = (f'<small class="auto">Kalshi</small>' + (f' <small>(mercado {r.p_mercado * 100:.0f}% «Más de» · modelo {r.p_modelo * 100:.0f}%)</small>' if pd.notna(r.p_mercado) else ""))
     else:
         fu = '<small title="No hay precio de Kalshi: uso su línea típica (la que lo dejaría 50/50 en un partido normal)">línea típica</small>'
     pj = r.p_juega if (r.p_juega is not None and pd.notna(r.p_juega)) else 1.0
     attrs = (f' data-emu="{r.mu_eff:.4f}" data-ephi="{r.phi:.4f}" data-epj="{pj:.3f}" data-ew="{r.w:g}" data-elad="{r.lad}" '
              f'data-l0="{r.linea:g}" data-src0="{html.escape(fu, quote=True)}"')
-    return (f'<tr{attrs}><td><span class="pl">{html.escape(r.jugador)}</span><span class="rol">{r.rol_depth or r.rol}</span>{_chips(r)}</td>'
+    return (f'<tr{attrs}><td><span class="pl">{html.escape(r.jugador)}</span><span class="rol">{_rol_pe(r)}</span>{_chips(r)}</td>'
             f'<td class="num"><input class="elin" type="number" step="0.5" value="{r.linea:g}" title="Cambia la línea para recalcular"> '
             f'<button class="pbtn" data-reset="1" title="Volver a la línea original">↺</button><br><span class="esrc">{fu}</span></td>'
             f'<td class="num"><b>{_fmt(r.proyeccion)}</b></td>'
             f'<td class="num eqo">{over * 100:.0f}%</td><td class="num equ">{(1 - over) * 100:.0f}%</td>'
             f'<td><span class="eqbar">{_barra(over)}</span><span class="lado{fuerte}">{lado} {pl * 100:.0f}%</span><br>'
-            f'<small class="ecj">cuota justa: OVER {_cj(over):+d} · UNDER {_cj(1 - over):+d}</small></td></tr>')
+            f'<small class="ecj">cuota justa: Más de {_cj(over)} · Menos de {_cj(1 - over)}</small></td></tr>')
 
 
-def _cj(p: float) -> int:
-    p = min(max(p, 0.01), 0.99)
-    return int(round(-100 * p / (1 - p))) if p >= 0.5 else int(round(100 * (1 - p) / p))
+def _cj(p: float) -> str:
+    from odds_fmt import fdj          # cuota justa en decimal (1 / probabilidad)
+    return fdj(p)
 
 
-_TH = ('<tr><th>Jugador</th><th>Línea</th><th>Proyección</th><th>OVER</th><th>UNDER</th><th>Lado más probable</th></tr>')
+_TH = ('<tr><th>Jugador</th><th>Línea</th><th>Proyección</th><th>Más de</th><th>Menos de</th><th>Lado más probable</th></tr>')
 
 
 def _bloque(titulo: str, ayuda: str, filas: list[str]) -> str:
@@ -224,11 +231,11 @@ def html_equipos(T: pd.DataFrame, todos: list[str], games_semana: pd.DataFrame |
     return (
         '<h2 id="porequipo">Equipo por equipo: QB, anotadores, WR y RB</h2>'
         '<p class="explain">Para cada equipo que juega esta semana: las yardas de pase de su QB, quién tiene más probabilidad de anotar y las yardas de sus receptores y corredores, '
-        'con la probabilidad de <b>OVER</b> (pasar la línea) y de <b>UNDER</b> (quedarse debajo). '
+        'con la probabilidad de <b>Más de</b> (pasar la línea) y de <b>Menos de</b> (quedarse debajo). '
         'Cuando hay precio de Kalshi la línea es la de Kalshi y la probabilidad es la <b>mezcla</b> modelo + mercado (la que mejor calibrada salió al probarla con partidos pasados). '
-        'Si no hay precio, uso su <b>línea típica</b> (la que lo dejaría 50/50 en un partido normal) y solo el modelo: en ese caso un OVER por encima de 50% significa que el rival y el guion del partido lo favorecen, '
+        'Si no hay precio, uso su <b>línea típica</b> (la que lo dejaría 50/50 en un partido normal) y solo el modelo: en ese caso un «Más de» por encima de 50% significa que el rival y el guion del partido lo favorecen, '
         'no que haya ventaja contra tu casa. <b>Si tu casa tiene otra línea, escríbela en la casilla «Línea» de cualquier jugador y las probabilidades se recalculan al instante</b> (con la mezcla de Kalshi si esa línea cae dentro de sus precios; si no, solo con el modelo). El botón ↺ regresa a la línea original.</p>'
-        '<div class="box"><b>Cómo leerlo:</b> un 60% de OVER significa que, en estos números, de cada 10 veces que se repitiera el partido el jugador pasa la línea unas 6. '
+        '<div class="box"><b>Cómo leerlo:</b> un 60% de «Más de» significa que, en estos números, de cada 10 veces que se repitiera el partido el jugador pasa la línea unas 6. '
         'Las probabilidades de jugadores sin mucho historial o dudosos tienen más incertidumbre. No es asesoría financiera.</div>'
         + bye + f'<p class="eqidx">{idx}</p><div class="eqgrid">{"".join(cards)}</div>')
 
@@ -238,7 +245,7 @@ JS = """
 (function(){
 function cdf(k,mu,phi){if(k<0)return 0;var n=1/phi,p=n/(n+mu),pmf=Math.exp(n*Math.log(p)),c=pmf;for(var i=0;i<k;i++){pmf=pmf*(i+n)/(i+1)*(1-p);c+=pmf;}return Math.min(c,1);}
 function pc(p){var v=Math.round(p*100);return v<1?'<1%':(v>99?'>99%':v+'%');}
-function cj(p){if(p<0.02||p>0.98)return '—';var o=p>=0.5?Math.round(-100*p/(1-p)):Math.round(100*(1-p)/p);return (o>0?'+':'')+o;}
+function cj(p){if(p<0.02||p>0.98)return '—';return (1/p).toFixed(2);}
 function lad(tr){var t=tr.dataset.elad;if(!t)return [];return t.split(',').map(function(x){var a=x.split(':');return [parseFloat(a[0]),parseFloat(a[1])];}).sort(function(a,b){return a[0]-b[0];});}
 function mid(l,L){for(var i=0;i<l.length;i++){if(Math.abs(l[i][0]-L)<1e-9)return l[i][1];}
  for(i=0;i+1<l.length;i++){if(L>l[i][0]&&L<l[i+1][0]){var f=(L-l[i][0])/(l[i+1][0]-l[i][0]);return l[i][1]+f*(l[i+1][1]-l[i][1]);}}return NaN;}
@@ -247,12 +254,12 @@ function eq(tr){var L=parseFloat(tr.querySelector('input.elin').value),d=tr.data
  if(isNaN(L)){src.textContent='escribe la línea';return;}
  var mu=+d.emu,phi=+d.ephi,pj=+d.epj,w=+d.ew,pm=1-cdf(Math.floor(L),mu,phi),L0=parseFloat(d.l0),m=mid(lad(tr),L),p,txt;
  if(Math.abs(L-L0)<1e-9){src.innerHTML=d.src0;}
- if(!isNaN(m)){p=w*pm*pj+(1-w)*m;if(Math.abs(L-L0)>1e-9)txt='<small class="auto">mezcla con Kalshi</small> <small>(mercado '+Math.round(m*100)+'% over · modelo '+Math.round(pm*pj*100)+'%)</small>';}
+ if(!isNaN(m)){p=w*pm*pj+(1-w)*m;if(Math.abs(L-L0)>1e-9)txt='<small class="auto">mezcla con Kalshi</small> <small>(mercado '+Math.round(m*100)+'% «Más de» · modelo '+Math.round(pm*pj*100)+'%)</small>';}
  else{p=pm;if(Math.abs(L-L0)>1e-9)txt='<small>solo modelo (si juega)'+(lad(tr).length?'; esa línea queda fuera de los precios de Kalshi':'')+'</small>';}
  if(Math.abs(L-L0)>1e-9)src.innerHTML=txt;
  o.textContent=pc(p);u.textContent=pc(1-p);bar.style.width=(p*100)+'%';
- var pl=Math.max(p,1-p);lado.textContent=(p>=0.5?'OVER ':'UNDER ')+pc(pl);lado.className='lado'+(pl>=0.6?' fuerte':'');
- cjq.textContent='cuota justa: OVER '+cj(p)+' · UNDER '+cj(1-p);}
+ var pl=Math.max(p,1-p);lado.textContent=(p>=0.5?'Más de ':'Menos de ')+pc(pl);lado.className='lado'+(pl>=0.6?' fuerte':'');
+ cjq.textContent='cuota justa: Más de '+cj(p)+' · Menos de '+cj(1-p);}
 document.addEventListener('input',function(ev){var t=ev.target;if(t.classList&&t.classList.contains('elin')){eq(t.closest('tr'));}});
 document.addEventListener('click',function(ev){var b=ev.target.closest('button[data-reset]');if(!b)return;var tr=b.closest('tr');tr.querySelector('input.elin').value=tr.dataset.l0;eq(tr);});
 })();
@@ -267,8 +274,8 @@ input.elin{width:70px;padding:2px 4px;border:1px solid var(--line);border-radius
 .eqcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
 .eqcard h3{margin:0 0 4px;font-size:1.05rem}.eqcard h3 small{color:var(--ink2);font-weight:400;font-size:.8rem}
 .eqcard h4{margin:12px 0 2px;font-size:.88rem}.eqcard h4 small{color:var(--ink2);font-weight:400}
-.bar2{display:inline-block;width:70px;height:8px;border-radius:4px;background:#f1c3b8;vertical-align:middle;margin:0 6px;overflow:hidden}
-.bar2 i{display:block;height:8px;background:#6fb78a}
+.bar2{display:inline-block;width:70px;height:8px;border-radius:4px;background:var(--surface-3);border:1px solid var(--border-subtle);vertical-align:middle;margin:0 6px;overflow:hidden}
+.bar2 i{display:block;height:8px;background:var(--accent)}
 .lado{font-size:.8rem;font-weight:600;color:var(--ink2)}.lado.fuerte{color:var(--yesink)}
 ol.tdlist{margin:2px 0 0;padding-left:1.3em;font-size:.88rem}ol.tdlist li{padding:2px 0}
 """

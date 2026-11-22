@@ -131,8 +131,8 @@ def construir(res: dict, ruta: Path, fuente: str = "") -> Path:
 <div class="card"><b>Movimiento del precio (CLV).</b><ul>{clv}</ul><span class="explain">Si el modelo supiera algo, el precio debería moverse hacia él antes del partido (valor positivo).</span></div>
 
 <h2>5. ¿Está sesgado el precio?</h2>
-<p class="explain">Si siempre compraras «Sí» (o siempre «No») en cada tramo de precio, ¿cuánto ganarías o perderías después de comisión y diferencia entre compra y venta? Muestra si los favoritos o los improbables están mal pagados. No depende del modelo.</p>
-<div class="card"><table><tr><th>Precio del «Sí»</th><th>n</th><th>Precio medio</th><th>Pasó</th><th>ROI comprar «Sí»</th><th>ROI comprar «No»</th></tr>{pp}</table></div>
+<p class="explain">Si siempre compraras «Más de» (o siempre «Menos de») en cada tramo de precio, ¿cuánto ganarías o perderías después de comisión y diferencia entre compra y venta? Muestra si los favoritos o los improbables están mal pagados. No depende del modelo.</p>
+<div class="card"><table><tr><th>Precio de «Más de»</th><th>n</th><th>Precio medio</th><th>Pasó</th><th>ROI comprar «Más de»</th><th>ROI comprar «Menos de»</th></tr>{pp}</table></div>
 
 <h2>6. Semana por semana</h2>
 <div class="card"><table><tr><th>Semana</th><th>n</th><th>Error mercado</th><th>Error modelo</th></tr>{sem}</table></div>

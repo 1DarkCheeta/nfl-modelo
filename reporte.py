@@ -21,8 +21,9 @@ REPORTES = ROOT / "reportes"
 REPORTES.mkdir(exist_ok=True)
 
 # Colores (paleta categorica validada: azul / naranja; gris para el mercado)
-SURF, INK, INK2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e6e5e1"
-C_B, C_A, C_MUTED = "#2a78d6", "#eb6834", "#b9b8b2"
+from ui_css import COL                      # los colores de las graficas salen de los mismos tokens que la pagina
+SURF, INK, INK2, GRID = COL["surface"], COL["text"], COL["text-2"], COL["border-subtle"]
+C_B, C_A, C_MUTED = COL["info"], COL["aviso"], "#5F7799"
 
 TEAMS = {"ARI": "Arizona Cardinals", "ATL": "Atlanta Falcons", "BAL": "Baltimore Ravens", "BUF": "Buffalo Bills",
          "CAR": "Carolina Panthers", "CHI": "Chicago Bears", "CIN": "Cincinnati Bengals", "CLE": "Cleveland Browns",
@@ -47,17 +48,17 @@ def fecha(d) -> str:
 # ------------------------------------------------------------------ graficos
 def _b64(fig) -> str:
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=130, bbox_inches="tight", facecolor=SURF)
+    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight", transparent=True)
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode()
 
 
 def _style(ax, grid="x"):
-    ax.set_facecolor(SURF)
+    ax.set_facecolor("none")
     for s in ("top", "right", "left"):
         ax.spines[s].set_visible(False)
     ax.spines["bottom"].set_color(GRID)
-    ax.tick_params(colors=INK2, length=0, labelsize=9)
+    ax.tick_params(colors=INK2, length=0, labelsize=15)
     ax.grid(axis=grid, color=GRID, lw=0.8)
     ax.set_axisbelow(True)
 
@@ -68,7 +69,7 @@ def _labels(res):
 
 def fig_margenes(res) -> str:
     n = len(res)
-    fig, ax = plt.subplots(figsize=(8.6, 0.42 * n + 1.5), facecolor=SURF)
+    fig, ax = plt.subplots(figsize=(6.0, 0.46 * n + 2.4), facecolor="none")
     _style(ax)
     y = np.arange(n)
     vals = np.vstack([res.margen_mercado, res.pred_mA, res.pred_mB])
@@ -79,14 +80,14 @@ def fig_margenes(res) -> str:
     ax.scatter(res.pred_mB, y, marker="o", s=55, color=C_B, edgecolors=SURF, linewidths=1, zorder=4, label="Modelo B (decisión)")
     ax.set_yticks(y, _labels(res))
     ax.invert_yaxis()
-    ax.set_xlabel("← gana la visita      puntos de diferencia esperados      gana el local →", color=INK2, fontsize=9)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, frameon=False, fontsize=9, labelcolor=INK2)
+    ax.set_xlabel("← gana la visita   ·   puntos esperados   ·   gana el local →", color=INK2, fontsize=15)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=1, frameon=False, fontsize=15, labelcolor=INK2)
     return _b64(fig)
 
 
 def fig_probabilidad(res) -> str:
     n = len(res)
-    fig, ax = plt.subplots(figsize=(8.6, 0.42 * n + 1.5), facecolor=SURF)
+    fig, ax = plt.subplots(figsize=(6.0, 0.46 * n + 2.4), facecolor="none")
     _style(ax)
     y = np.arange(n)
     mk, mb = res.p_gana_local_mercado * 100, res.p_gana_local * 100
@@ -98,16 +99,16 @@ def fig_probabilidad(res) -> str:
     ax.set_yticks(y, _labels(res))
     ax.invert_yaxis()
     ax.set_xlim(0, 100)
-    ax.set_xlabel("← favorece a la visita      probabilidad de que gane el LOCAL (%)      favorece al local →", color=INK2, fontsize=9)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False, fontsize=9, labelcolor=INK2)
+    ax.set_xlabel("← visita   ·   probabilidad de que gane el LOCAL (%)   ·   local →", color=INK2, fontsize=15)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=1, frameon=False, fontsize=15, labelcolor=INK2)
     return _b64(fig)
 
 
 def fig_ventajas(res, min_edge) -> str:
     n = len(res)
     thr = min_edge * 100
-    paneles = [("Spread", "sp"), ("Total (over/under)", "to"), ("Ganador (moneyline)", "ml")]
-    fig, axes = plt.subplots(1, 3, figsize=(11, 0.4 * n + 1.7), sharey=True, facecolor=SURF)
+    paneles = [("Spread", "sp"), ("Total (más de / menos de)", "to"), ("Ganador (moneyline)", "ml")]
+    fig, axes = plt.subplots(3, 1, figsize=(6.0, 3 * (0.4 * n + 1.3)), sharey=True, facecolor="none")
     y = np.arange(n)
     todo = np.concatenate([(res[f"{k}_edge"] * 100).dropna().values for _, k in paneles])
     lo, hi = min(-8, todo.min() - 1), max(thr + 4, todo.max() + 1)
@@ -120,14 +121,14 @@ def fig_ventajas(res, min_edge) -> str:
         ax.axvline(thr, color=C_A, ls="--", lw=1.5)
         for i, x in enumerate(v):
             if x >= thr:
-                ax.text(x + 0.3, i, res[f"{k}_lado"].iloc[i], va="center", fontsize=8, color=INK)
+                ax.text(x + 0.3, i, lt(res[f"{k}_lado"].iloc[i]), va="center", fontsize=15, color=INK)
         ax.set_xlim(lo, hi + 4)
         ax.xaxis.set_major_locator(plt.MultipleLocator(5))
-        ax.set_title(titulo, fontsize=10, color=INK, loc="left")
-        ax.set_xlabel("ventaja (pts de probabilidad)", color=INK2, fontsize=8)
+        ax.set_title(titulo, fontsize=17, color=INK, loc="left")
+        ax.set_xlabel("ventaja (pts de probabilidad)", color=INK2, fontsize=15)
     axes[0].set_yticks(y, _labels(res))
     axes[0].invert_yaxis()
-    axes[2].text(thr, -0.9, " umbral de valor", color=C_A, fontsize=8, va="bottom")
+    axes[2].text(thr, -0.9, " umbral de valor", color=C_A, fontsize=15, va="bottom")
     fig.tight_layout()
     return _b64(fig)
 
@@ -138,15 +139,15 @@ def fig_calibracion(oos, cur) -> str | None:
         return None
     s = s.assign(bin=pd.cut(s.pwin_B_cal, [0, .2, .35, .5, .65, .8, 1.0], include_lowest=True))
     g = s.groupby("bin", observed=True).agg(n=("y_win", "size"), pred=("pwin_B_cal", "mean"), real=("y_win", "mean"))
-    fig, ax = plt.subplots(figsize=(4.6, 4.6), facecolor=SURF)
+    fig, ax = plt.subplots(figsize=(6.0, 6.0), facecolor="none")
     _style(ax, "both")
     ax.plot([0, 100], [0, 100], color=C_MUTED, lw=2, label="Calibración perfecta")
     ax.scatter(g.pred * 100, g.real * 100, s=g.n / 3 + 30, color=C_B, edgecolors=SURF, linewidths=1.5, zorder=3,
                label="Modelo B (tamaño = nº de partidos)")
     ax.set_xlim(0, 100), ax.set_ylim(0, 100)
-    ax.set_xlabel("Probabilidad que daba el modelo (%)", color=INK2, fontsize=9)
-    ax.set_ylabel("Frecuencia real con que ganó (%)", color=INK2, fontsize=9)
-    ax.legend(loc="upper left", frameon=False, fontsize=8, labelcolor=INK2)
+    ax.set_xlabel("Probabilidad que daba el modelo (%)", color=INK2, fontsize=15)
+    ax.set_ylabel("Frecuencia real con que ganó (%)", color=INK2, fontsize=15)
+    ax.legend(loc="upper left", frameon=False, fontsize=15, labelcolor=INK2)
     return _b64(fig)
 
 
@@ -159,18 +160,18 @@ def rmse_tabla(oos, cur):
 
 
 def fig_rmse(vals) -> str:
-    fig, ax = plt.subplots(figsize=(4.8, 2.2), facecolor=SURF)
+    fig, ax = plt.subplots(figsize=(6.0, 2.8), facecolor="none")
     _style(ax)
     names, v = list(vals), list(vals.values())
     cols = [INK2, C_A, C_B]
     ax.hlines(range(3), min(v) - 0.15, v, color=C_MUTED, lw=2)
     ax.scatter(v, range(3), s=80, color=cols, zorder=3, marker="o")
     for i, x in enumerate(v):
-        ax.text(x + 0.04, i, f"{x:.2f}", fontsize=9, color=INK, va="center")
+        ax.text(x + 0.04, i, f"{x:.2f}", fontsize=15, color=INK, va="center")
     ax.set_yticks(range(3), names)
     ax.invert_yaxis()
     ax.set_xlim(min(v) - 0.15, max(v) + 0.3)
-    ax.set_xlabel("Error típico al predecir el margen (puntos; menos = mejor)", color=INK2, fontsize=8)
+    ax.set_xlabel("Error típico del margen (puntos; menos = mejor)", color=INK2, fontsize=15)
     return _b64(fig)
 
 
@@ -225,12 +226,20 @@ def _quien(margen: float, home: str, away: str) -> str:
     return f"{nm(home if margen > 0 else away)} por {abs(margen):.1f}"
 
 
+def lt(s):
+    """Etiqueta visible del lado de un total: la lógica interna sigue usando OVER/UNDER."""
+    return str(s).replace("OVER", "Más de").replace("UNDER", "Menos de")
+
+
 def _badge(edge, lado, min_edge, tiene=True) -> str:
     v = veredicto(edge, lado, min_edge, tiene)
+    lado = lt(lado)
     if v.startswith("POSIBLE"):
         return f'<span class="badge yes">✔ Posible valor: {html.escape(lado)} (ventaja {edge * 100:+.1f} pts)</span>'
     if v.startswith("Sin cuota"):
         return '<span class="badge no">Sin cuota publicada todavía</span>'
+    if abs(edge) * 100 < 0.05:                      # la diferencia se redondea a 0.0: no es «paga 0.0 pts menos», es que coincide
+        return '<span class="badge no">Sin ventaja: el modelo coincide con la línea</span>'
     if edge < 0:
         return (f'<span class="badge no">Sin ventaja · incluso el mejor lado ({html.escape(lado)}) paga '
                 f'{abs(edge) * 100:.1f} pts menos de lo que necesita para convenir</span>')
@@ -264,13 +273,13 @@ def _card(r, min_edge, extra: str = "") -> str:
       <h4>Spread (con ventaja de puntos)</h4>
       <p>Línea: <b>{h} {r.linea_local:+g}</b>. El mercado espera: {_quien(r.margen_mercado, h, a)}.</p>
       <p class="mini">Modelo A: {_quien(r.pred_mA, h, a)} · Modelo B: {_quien(r.pred_mB, h, a)}</p>
-      <p>Mejor lado: <b>{html.escape(r.sp_lado)}</b>, el modelo le da {cubre_p:.0f}% de cubrir; la cuota ({r.sp_cuota:+.0f}) exige {r.sp_imp * 100:.0f}%.</p>
+      <p>Mejor lado: <b>{html.escape(r.sp_lado)}</b>, el modelo le da {cubre_p:.0f}% de cubrir; la cuota ({fd(r.sp_cuota)}) exige {r.sp_imp * 100:.0f}%.</p>
       {_badge(r.sp_edge, r.sp_lado, min_edge)}
     </section>
     <section>
-      <h4>Total de puntos (over/under)</h4>
+      <h4>Total de puntos (más de / menos de)</h4>
       <p>Línea: <b>{r.total_line:g}</b>. El modelo B espera <b>{r.pred_tB:.1f}</b> puntos.</p>
-      <p>Mejor lado: <b>{html.escape(r.to_lado)}</b>, el modelo le da {r.to_p * 100:.0f}%; la cuota ({r.to_cuota:+.0f}) exige {r.to_imp * 100:.0f}%.</p>
+      <p>Mejor lado: <b>{html.escape(lt(r.to_lado))}</b>, el modelo le da {r.to_p * 100:.0f}%; la cuota ({fd(r.to_cuota)}) exige {r.to_imp * 100:.0f}%.</p>
       {_badge(r.to_edge, r.to_lado, min_edge)}
     </section>
   </div>
@@ -279,32 +288,15 @@ def _card(r, min_edge, extra: str = "") -> str:
 </article>"""
 
 
-CSS = """
-:root{--bg:#f6f5f2;--card:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--line:#e6e5e1;--blue:#2a78d6;--orange:#eb6834;--yes:#dff0e4;--yesink:#0e5a23;--no:#eeede9}
-@media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--ink:#f0efec;--ink2:#c3c2b7;--line:#34332f;--yes:#17361f;--yesink:#8fd9a2;--no:#2a2927}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}h1{font-size:1.7rem;margin:.2em 0}h2{font-size:1.3rem;margin:2em 0 .4em}h3{margin:0;font-size:1.05rem}h4{margin:.2em 0;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2)}
-.sub{color:var(--ink2);margin:0 0 1em}.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
-.box.big{border-left:5px solid var(--blue)}.box ul{margin:.4em 0 0;padding-left:1.2em}
-.chart{background:#fcfcfb;border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0;overflow-x:auto}.chart img{max-width:100%;height:auto;display:block;margin:auto}
-.explain{color:var(--ink2);margin:.2em 0 .6em}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:760px){.grid2{grid-template-columns:1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}.card header{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
-.card header span{color:var(--ink2)}.fecha{font-size:.9rem}.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}@media(max-width:900px){.cols{grid-template-columns:1fr}}
-.card p{margin:.3em 0;font-size:.93rem}.mini{color:var(--ink2);font-size:.85rem!important}.warn{background:#fff3cd;color:#5c4400;border-radius:8px;padding:6px 10px;font-size:.88rem!important;margin-top:10px!important}
-@media(prefers-color-scheme:dark){.warn{background:#4a3c10;color:#ffe9a8}}
-.badge{display:inline-block;border-radius:8px;padding:5px 9px;font-size:.84rem;margin-top:6px}.badge.yes{background:var(--yes);color:var(--yesink);font-weight:600}.badge.no{background:var(--no);color:var(--ink2)}
-.bar{position:relative;height:12px;background:var(--line);border-radius:6px;margin-top:8px}.bar b{display:block;height:100%;background:var(--blue);border-radius:6px 0 0 6px}
-.tick{position:absolute;top:-4px;width:3px;height:20px;background:var(--ink);border-radius:2px}.barlab{display:flex;justify-content:space-between;font-size:.75rem;color:var(--ink2)}
-dl{margin:0}dt{font-weight:600;margin-top:.7em}dd{margin:.1em 0 0;color:var(--ink2)}table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
-.scroll{overflow-x:auto;max-width:100%}.foot{color:var(--ink2);font-size:.85rem;margin-top:2.5em}
-"""
+from odds_fmt import fd
+from ui_css import CSS_TODO as CSS      # un solo sistema de diseno (tokens + componentes); ver ui_css.py y ui/tokens.css
 
 GLOSARIO = """
 <dl>
 <dt>Línea o spread</dt><dd>Ventaja de puntos que se le da al favorito. «LA -12.5» significa que los Rams deben ganar por más de 12.5 para que la apuesta gane; «ARI +12.5» gana si Arizona pierde por menos de 12.5 o gana.</dd>
 <dt>Margen esperado</dt><dd>Por cuántos puntos se espera que gane cada equipo. Positivo = gana el local; negativo = gana la visita. El «margen del mercado» es simplemente la línea con el signo cambiado.</dd>
-<dt>Probabilidad de ganar / de cubrir / de over</dt><dd>Qué tan seguido el modelo cree que ocurrirá cada cosa (100% = seguro). «Cubrir» es superar el spread; «over» es que ambos equipos sumen más puntos que la línea del total.</dd>
-<dt>Cuota y probabilidad que exige</dt><dd>Una cuota de -110 significa apostar 110 para ganar 100. Para no perder dinero a largo plazo hay que acertar 52.4% de las veces: esa es la «probabilidad que exige» la cuota. Incluye la comisión de la casa, por eso en un duelo parejo ninguno de los dos lados llega a 50%.</dd>
+<dt>Probabilidad de ganar / de cubrir / de «Más de»</dt><dd>Qué tan seguido el modelo cree que ocurrirá cada cosa (100% = seguro). «Cubrir» es superar el spread; «Más de» es que ambos equipos sumen más puntos que la línea del total.</dd>
+<dt>Cuota y probabilidad que exige</dt><dd>Una cuota decimal de 1.91 significa que por cada 1 que apuestas recibes 1.91 si ganas (tu ganancia es 0.91). Para no perder dinero a largo plazo hay que acertar 52.4% de las veces: esa es la «probabilidad que exige» la cuota. Incluye la comisión de la casa, por eso en un duelo parejo ninguno de los dos lados llega a 50%.</dd>
 <dt>Ventaja (edge)</dt><dd>Probabilidad del modelo menos la probabilidad que exige la cuota, en puntos porcentuales. Si es <b>negativa</b>, la cuota paga menos de lo que vale según el modelo: <b>no conviene</b>. Solo se marca «posible valor» cuando supera el umbral (por defecto +2 pts).</dd>
 <dt>«Sin ventaja»</dt><dd>Es el resultado normal en la gran mayoría de los partidos: las casas ya ponen buenos precios y su comisión se come cualquier diferencia pequeña. Que una semana no haya ningún valor no es un error del programa.</dd>
 <dt>Moneyline</dt><dd>Apostar solo a quién gana, sin puntos de ventaja.</dd>
@@ -319,23 +311,60 @@ MODELOS = """
 </div>"""
 
 
+MK_EV = {"sp": "spread", "to": "total", "ml": "ganador"}
+
+
+def hist_valor(oos, me) -> tuple[dict, dict]:
+    """Historial real (fuera de muestra) de las apuestas «posible valor» por mercado: usa evaluacion.evaluar, sin recalcular nada nuevo.
+    Devuelve ({sp|to|ml: metricas de «valor»}, evaluacion completa por mercado para las tarjetas KPI de Calidad)."""
+    try:
+        import marcador as MC
+        ref = MC.referencia_backtest(oos, umbral=me)
+        ev = ref["eval"]
+        return {k: ev[mk]["valor"] for k, mk in MK_EV.items() if mk in ev}, ev
+    except Exception as ex:
+        print(f"  [aviso] no pude leer el historial de apuestas con valor ({ex})")
+        return {}, {}
+
+
+def veredicto_hist(hv) -> tuple[str, str, str]:
+    """(clase, texto del chip, linea de historial). Regla: ambar si el ROI historico es < 0 o su IC 95 % incluye 0; verde solo si el IC queda sobre 0."""
+    if not hv or not hv.get("n"):
+        return "aviso", "⚠ Ventaja pequeña – sin historial suficiente", ""
+    lin = (f"Histórico de este tipo: {hv['acierto'] * 100:.1f} % de acierto ({hv['n']} apuestas) · "
+           f"ROI {hv['roi'] * 100:+.1f} % (IC 95 %: {hv['lo'] * 100:+.1f} a {hv['hi'] * 100:+.1f} %)")
+    if hv["roi"] < 0:
+        return "aviso", "⚠ Ventaja pequeña – históricamente no rentable", lin
+    if hv["lo"] <= 0:
+        return "aviso", "⚠ Posible valor – histórico no concluyente", lin
+    return "valor", "✔ Posible valor – históricamente rentable", lin
+
+
 def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> Path:
     res, oos, cur, wk, me, games = r["res"], r["oos"], r["cur"], r["week"], r["min_edge"], r["games"]
     n = len(res)
+    HV, EV_ALL = hist_valor(oos, me)
     flagged = []
     for _, x in res.iterrows():
         for key, tit in (("sp", "Spread"), ("to", "Total"), ("ml", "Moneyline")):
             if key == "ml" and not x.tiene_ml:
                 continue
             if x[f"{key}_edge"] >= me:
-                flagged.append(f"<li><b>{html.escape(x[f'{key}_lado'])}</b> ({tit}, {nm(x.away_team)} @ {nm(x.home_team)}): "
-                               f"el modelo da {x[f'{key}_p'] * 100:.0f}% y la cuota {x[f'{key}_cuota']:+.0f} exige {x[f'{key}_imp'] * 100:.0f}% "
+                flagged.append(f"<li><span class=\"badge {'yes' if veredicto_hist(HV.get(key))[0] == 'valor' else 'warn'}\">{veredicto_hist(HV.get(key))[1]}</span> <b>{html.escape(lt(x[f'{key}_lado']))}</b> ({tit}, {nm(x.away_team)} @ {nm(x.home_team)}): "
+                               f"el modelo da {x[f'{key}_p'] * 100:.0f}% y la cuota {fd(x[f'{key}_cuota'])} exige {x[f'{key}_imp'] * 100:.0f}% "
                                f"→ ventaja {x[f'{key}_edge'] * 100:+.1f} pts</li>")
     if flagged:
-        resumen = (f'<div class="box big"><h2 style="margin-top:0">Resumen: {len(flagged)} posible(s) valor(es) esta semana</h2>'
-                   f'<ul>{"".join(flagged)}</ul><p class="explain">Es una diferencia pequeña respecto al mercado, no una predicción segura. '
-                   'En las pruebas históricas, apostar con este tipo de ventaja no demostró ser rentable (los resultados son demasiado '
-                   'inciertos). Revisa lesiones y mariscal titular antes de decidir.</p></div>')
+        _ks = []
+        for _, x in res.iterrows():
+            for key in ("sp", "to", "ml"):
+                if (key != "ml" or x.tiene_ml) and x[f"{key}_edge"] >= me and key not in _ks:
+                    _ks.append(key)
+        _tit = {"sp": "Spread", "to": "Total", "ml": "Moneyline"}
+        _hist = "".join(f"<li><b>{_tit[k]}:</b> {veredicto_hist(HV.get(k))[2] or 'sin historial suficiente'}</li>" for k in _ks)
+        resumen = (f'<div class="box big"><h2 style="margin-top:0">Resumen: {len(flagged)} posible(s) valor(es) esta semana (ventaja pequeña)</h2>'
+                   f'<ul>{"".join(flagged)}</ul><p class="explain"><b>Veredicto único:</b> son diferencias pequeñas respecto al mercado, no predicciones seguras. '
+                   'La etiqueta de cada una sale del historial real de ese tipo de apuesta (pruebas fuera de muestra); ámbar = el resultado histórico es negativo o no concluyente. '
+                   f'Revisa lesiones y mariscal titular antes de decidir.</p><ul class="explain">{_hist}</ul></div>')
     else:
         resumen = ('<div class="box big"><h2 style="margin-top:0">Resumen: ningún partido supera el umbral de valor</h2>'
                    '<p>Esta semana el modelo no ve ninguna diferencia lo bastante grande frente a las cuotas. '
@@ -470,7 +499,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
                       '(los avisos de mariscal, clima y bajas están en cada partido). No es asesoría financiera: apuesta solo lo que puedas perder y donde sea legal.</div>')
         ayuda = MODELOS.format(umbral=me * 100) + f'<details class="box"><summary><b>Qué significa cada número (glosario)</b></summary>{GLOSARIO}</details>'
         body_web = WEB.armar({
-            "cur": cur, "wk": wk, "me": me, "nm": nm, "res": res, "games": games, "PT": pt_data, "pt_partes": pt_partes, "qb": qb_an,
+            "cur": cur, "wk": wk, "me": me, "nm": nm, "hv": HV, "ev_all": EV_ALL,
+            "js_frag": {"jugadores": JG.JS if sec_jug else "", "proyecciones": PY.JS if sec_proy else ""}, "res": res, "games": games, "PT": pt_data, "pt_partes": pt_partes, "qb": qb_an,
             "clima": r.get("clima"), "excl": excl, "sub": f"{n} partidos pendientes con línea publicada · generado el {generado:%d/%m/%Y %H:%M}",
             "generado_iso": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "resumen": resumen, "importante": importante,
             "graficas": graficas, "ayuda": ayuda, "cred": cred, "hist_html": hist_html, "sec_qb": sec_qb, "sec_mov": sec_mov, "sec_jug": sec_jug, "sec_proy": sec_proy, "mov_juego": mov_juego, "sec_mc": sec_mc, "sec_cal": sec_cal,
@@ -541,10 +571,10 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         CSS_X += QB.CSS
     if sec_mov:
         CSS_X += MV.CSS
-    if sec_jug:
-        CSS_X, JS_X = CSS_X + JG.CSS, JS_X + JG.JS
+    if sec_jug:                                 # con el diseno nuevo, el JS de jugadores y proyecciones viaja dentro de su fragmento
+        CSS_X, JS_X = CSS_X + JG.CSS, JS_X + ("" if usa_web else JG.JS)
     if sec_proy:
-        CSS_X, JS_X = CSS_X + PY.CSS, JS_X + PY.JS
+        CSS_X, JS_X = CSS_X + PY.CSS, JS_X + ("" if usa_web else PY.JS)
     if usa_web:
         body, CSS_X, JS_X = body_web, CSS_X + WEB.CSS, JS_X + WEB.JS
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'

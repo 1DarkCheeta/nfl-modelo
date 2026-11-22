@@ -318,7 +318,6 @@ def etiquetas(v: dict | None) -> tuple[str, str]:
 CSS = """
 .pwx{margin:4px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pw{background:var(--no);border-radius:999px;padding:2px 9px;font-size:.78rem;white-space:nowrap}
-.pw-a{background:#fde7c8;color:#7a3d00;font-weight:600}.pw-i{background:var(--yes);color:var(--yesink)}.pw-n{color:var(--ink2)}
-@media (prefers-color-scheme:dark){.pw-a{background:#4a3315;color:#ffd9a0}}
+.pw-a{background:var(--aviso-bg);color:var(--aviso);font-weight:600}.pw-i{background:var(--yes);color:var(--yesink)}.pw-n{color:var(--ink2)}
 .pwn{color:var(--ink2);font-size:.78rem;margin:0 0 4px}
 """

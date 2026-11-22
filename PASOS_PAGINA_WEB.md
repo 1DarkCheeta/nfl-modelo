@@ -30,3 +30,15 @@ Tu forma de usar el modelo en la laptop (IDLE, F5) sigue igual; ahora además cr
 - Kalshi, ESPN, Ourlads o rbsdm podrían bloquear a los servidores de GitHub. Si pasa, el modelo corre sin esas fuentes y el reporte lo avisa. No lo he podido probar desde aquí.
 - El historial acumulado de tu laptop (líneas, predicciones, props) no se sube; en la nube empieza desde cero y se va llenando con cada corrida.
 - Los horarios de GitHub se corren a veces unos minutos.
+
+## Cómo está armada la página (rediseño de la Entrega 3)
+
+- `docs/index.html` es solo la «carcasa» (portada, menú y navegación, ~240 KB). Cada sección pesada vive en `docs/f/<nombre>.<huella>.html` y se descarga **solo cuando la abres** (por eso el celular abre la portada en menos de 1 s). No hay que hacer nada: `semana_nfl.py` / `publicar_web.py` los genera y borra los fragmentos viejos.
+- `reportes/reporte_*.html` sigue siendo **un solo archivo completo** que funciona con doble clic (sin servidor).
+- Para revisar la página en Windows antes de subirla: abre una terminal en la carpeta `docs` y ejecuta `py -m http.server 8000`; entra a http://localhost:8000. (Abrir `docs/index.html` con doble clic no carga los fragmentos porque el navegador bloquea `fetch` en `file://`.)
+- Todos los colores y tamaños salen de un solo archivo: `ui/tokens.css`. Para cambiar el tema o el tamaño de letra se edita ahí.
+- Direcciones directas (se pueden guardar o compartir): `#partido=TB-DET&tab=apuestas` (`apuestas`, `puntos`, `props`, `matchup`), `#tab=calidad`, `#tab=jugadores`, `#tab=proyecciones`, `#tab=guia`.
+
+
+## Actualización: la página ya NO necesita servidor local
+Los fragmentos de `docs/f/` ahora son archivos `.js` (se cargan con `<script src>`), así que `docs/index.html` funciona con doble clic y también en GitHub Pages. Ya no hace falta `py -m http.server`. Si una sección dice «No pude cargar esta parte», revisa que la carpeta `f` esté junto a `index.html` y pulsa «reintentar».

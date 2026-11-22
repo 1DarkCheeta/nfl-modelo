@@ -12,6 +12,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from odds_fmt import fd
 from reporte import C_A, C_B, C_MUTED, GRID, INK, INK2, SURF, _b64, _style, nm
 
 FUENTE = {"kalshi": "Kalshi", "draftkings": "DraftKings"}
@@ -30,22 +31,19 @@ CSS = """
 details.sub2{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}details.sub2>summary{cursor:pointer;font-weight:600}
 .mcols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}@media(max-width:900px){.mcols{grid-template-columns:1fr}}
 .mi{border-top:1px solid var(--line);padding:7px 0}.mi:first-of-type{border-top:0}.mt{font-weight:600;font-size:.92rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.mn{font-size:.85rem;color:var(--ink2);margin:2px 0}.note{font-size:.85rem;margin-top:2px}
+.mn{font-size:.85rem;color:var(--ink2);margin:2px 0}table.pt td.mn{min-width:150px;overflow-wrap:normal}.vacio-i{color:var(--ink2)}.note{font-size:.85rem;margin-top:2px}
 .chip{border-radius:999px;padding:1px 9px;font-size:.75rem;font-weight:600}.chip.fav{background:var(--yes);color:var(--yesink)}.chip.neu{background:var(--no);color:var(--ink2)}
-.chip.dif{background:#fde2dc;color:#8a2a14}@media(prefers-color-scheme:dark){.chip.dif{background:#4a2018;color:#ffb4a2}}
-.trk{display:inline-block;position:relative;width:96px;height:8px;border-radius:4px;vertical-align:middle;margin:0 6px;background:linear-gradient(90deg,#f1c3b8,#e6e5e1 50%,#bfe0cb)}
+.chip.dif{background:var(--contra-bg);color:var(--contra)}
+.trk{display:inline-block;position:relative;width:96px;height:8px;border-radius:4px;vertical-align:middle;margin:0 6px;background:linear-gradient(90deg,var(--contra-bg),var(--surface-3) 50%,var(--valor-bg));border:1px solid var(--border-subtle)}
 .trk i{position:absolute;top:-4px;width:4px;height:16px;border-radius:2px;background:var(--ink)}
 .trkrow{font-size:.8rem;color:var(--ink2);white-space:nowrap}.trkrow small{color:var(--ink2)}
 table.pt{width:100%;font-size:.84rem;margin:6px 0}table.pt th{font-size:.75rem;color:var(--ink2);text-transform:uppercase;letter-spacing:.03em}
 table.pt td{vertical-align:middle}.num{text-align:right;font-variant-numeric:tabular-nums}.pl{font-weight:600}.rol{font-size:.72rem;color:var(--ink2);margin-left:4px}
-.est{display:inline-block;border-radius:6px;padding:0 6px;font-size:.72rem;background:#fff3cd;color:#5c4400;margin-left:4px}
-@media(prefers-color-scheme:dark){.est{background:#4a3c10;color:#ffe9a8}}
+.est{display:inline-block;border-radius:6px;padding:0 6px;font-size:.72rem;background:var(--aviso-bg);color:var(--aviso);margin-left:4px}
 .rng{position:relative;display:inline-block;width:110px;height:8px;background:var(--line);border-radius:4px}.rng b{position:absolute;top:0;height:8px;background:var(--blue);opacity:.55;border-radius:4px}
 .rng i{position:absolute;top:-3px;width:3px;height:14px;background:var(--ink);border-radius:2px}
 input.lin,input.cuo,input.cuu{width:56px;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit}
-.res{font-size:.8rem;min-width:170px}.res.yes{color:var(--yesink);font-weight:600}.pos{color:var(--yesink)}.neg{color:#b3361b}
-@media(prefers-color-scheme:dark){.neg{color:#ffb4a2}}
-.scroll{overflow-x:auto;max-width:100%}
+.res{font-size:.8rem;min-width:170px}.res.yes{color:var(--yesink);font-weight:600}.pos{color:var(--yesink)}.neg{color:var(--contra)}
 .calc{display:flex;gap:4px;align-items:flex-end}.calc label{display:flex;flex-direction:column;font-size:.64rem;color:var(--ink2)}
 table.pt td,table.pt th{padding:4px 6px}.mi,.mn,.note{overflow-wrap:anywhere}.trkrow{white-space:normal}
 .mcols>div,.card .cols>section{min-width:0}
@@ -66,24 +64,26 @@ body{padding-bottom:0}
 JS_TPL = """
 <script>
 function nbCdf(k,mu,phi){if(k<0)return 0;var n=1/phi,p=n/(n+mu),pmf=Math.exp(n*Math.log(p)),c=pmf;for(var i=0;i<k;i++){pmf=pmf*(i+n)/(i+1)*(1-p);c+=pmf;}return Math.min(c,1);}
-function imp(o){return o<0?-o/(-o+100):100/(o+100);}
+function imp(o){return 1/o;}   // cuota decimal -> probabilidad que exige
+function dnum(v){v=String(v).replace(',','.').trim();if(/^[+\u2212\u2013\u2014-]/.test(v))return NaN;v=parseFloat(v);return (isNaN(v)||v<=1||v>100)?NaN:v;}   // cuota decimal 1.01-100 (sin signo)
 function calc(tr){var out=tr.querySelector('.res'),L=parseFloat(tr.querySelector('.lin').value);
  if(isNaN(L)){out.textContent='escribe la línea →';out.className='res';return;}
  var mu=+tr.dataset.mu,phi=+tr.dataset.phi,s=+tr.dataset.s,thr=0.02;
  var pu=nbCdf(Math.ceil(L)-1,mu,phi),po=1-nbCdf(Math.floor(L),mu,phi),o=po/(po+pu);o=0.5+s*(o-0.5);var pj=+tr.dataset.pj;if(pj>0&&pj<1)o=o*pj;var u=1-o;tr.dataset.po=o;
- var oo=parseFloat(tr.querySelector('.cuo').value)||-110,ou=parseFloat(tr.querySelector('.cuu').value)||-110;
- var eo=o-imp(oo),eu=u-imp(ou),side=eo>=eu?'OVER':'UNDER',e=Math.max(eo,eu);
- var t='OVER '+Math.round(o*100)+'% · UNDER '+Math.round(u*100)+'% → ';
+ var oo=dnum(tr.querySelector('.cuo').value)||1.91,ou=dnum(tr.querySelector('.cuu').value)||1.91;
+ var eo=o-imp(oo),eu=u-imp(ou),side=eo>=eu?'Más de':'Menos de',e=Math.max(eo,eu);
+ var t='Más de '+Math.round(o*100)+'% · Menos de '+Math.round(u*100)+'% → ';
  if(e>=thr){t+='✔ posible valor: '+side+' ('+(e*100>=0?'+':'')+(e*100).toFixed(1)+' pts)';out.className='res yes';}
  else{t+='sin ventaja (mejor lado '+side+', '+(e*100).toFixed(1)+' pts)';out.className='res';}
- out.textContent=t;btns(out,[['over','copiar OVER'],['under','copiar UNDER']]);}
-function calcTd(tr){var out=tr.querySelector('.res'),o=parseFloat(tr.querySelector('.cutd').value);
- if(isNaN(o)||o===0||(o>-100&&o<100)){out.textContent='escribe la cuota (ej. +150) →';out.className='res';return;}
+ out.textContent=t;btns(out,[['over','copiar «Más de»'],['under','copiar «Menos de»']]);}
+function calcTd(tr){var out=tr.querySelector('.res'),o=dnum(tr.querySelector('.cutd').value);
+ if(isNaN(o)){out.textContent='escribe la cuota decimal (ej. 2.50) →';out.className='res';return;}
  var p=+tr.dataset.ptd,ip=imp(o),e=p-ip,t='La cuota exige '+Math.round(ip*100)+'% · el modelo da '+Math.round(p*100)+'% → ';
  if(e>=0.03){t+='✔ posible valor (+'+(e*100).toFixed(1)+' pts)';out.className='res yes';}
  else{t+='sin ventaja ('+(e*100>=0?'+':'')+(e*100).toFixed(1)+' pts)';out.className='res';}
- out.textContent=t;btns(out,[['si','copiar Sí']]);}
-document.addEventListener('DOMContentLoaded',function(){panelInit();document.querySelectorAll('tr[data-mu]').forEach(function(tr){if(tr.querySelector('.lin').value!=='')calc(tr);});document.querySelectorAll('tr[data-ptd]').forEach(function(tr){if(tr.querySelector('.cutd').value!=='')calcTd(tr);});});
+ out.textContent=t;btns(out,[['si','copiar «Más de 0.5»']]);}
+function __rx(){panelInit();document.querySelectorAll('tr[data-mu]').forEach(function(tr){if(tr.querySelector('.lin').value!=='')calc(tr);});document.querySelectorAll('tr[data-ptd]').forEach(function(tr){if(tr.querySelector('.cutd').value!=='')calcTd(tr);});}
+document.addEventListener('DOMContentLoaded',__rx);(window.__fr=window.__fr||[]).push(__rx);
 document.addEventListener('input',function(ev){var tr=ev.target.closest('tr[data-mu]');if(tr)calc(tr);var t2=ev.target.closest('tr[data-ptd]');if(t2)calcTd(t2);});
 
 var RHO=__RHO__,LEGS={};
@@ -108,7 +108,7 @@ function joint(L){var n=L.length,p=L.map(function(x){return Math.min(Math.max(x.
  for(var s=0;s<N;s++){for(i=0;i<n;i++)z[i]=gauss(rnd);var ok=true;
   for(i=0;i<n&&ok;i++){w=0;for(j=0;j<=i;j++)w+=C[i][j]*z[j];if(w>=c[i])ok=false;}if(ok)hit++;}
  return {ind:ind,con:hit/N};}
-function cuotaJusta(p){p=Math.min(Math.max(p,0.01),0.99);return p>=0.5?Math.round(-100*p/(1-p)):Math.round(100*(1-p)/p);}
+function cuotaJusta(p){p=Math.min(Math.max(p,0.01),0.99);return (1/p).toFixed(2);}
 function legData(tr){var d=tr.dataset,td=d.ptd!==undefined,po=td?+d.ptd:(d.po!==undefined?+d.po:NaN),ln=td?'':(tr.querySelector('.lin')?tr.querySelector('.lin').value:'');
  return {pid:d.pid,team:d.team,game:d.game,pos:d.pos,mkt:d.mkt,nm:d.nm,lab:d.lab,po:po,td:td,ln:ln};}
 function btns(out,L){L.forEach(function(x){var b=document.createElement('button');b.className='pbtn cb';b.dataset.l=x[0];b.textContent=x[1];b.title='Copia la apuesta para registrarla en «Mis apuestas» (mis_apuestas.py)';out.appendChild(document.createTextNode(' '));out.appendChild(b);});}
@@ -130,17 +130,17 @@ function renderP(keep){var d=document.getElementById('parlay'),ks=Object.keys(LE
  var odds=keep&&document.getElementById('parlayOdds')?document.getElementById('parlayOdds').value:(d.dataset.odds||'');d.dataset.odds=odds;
  var rows='',use=[],miss=0;
  ks.forEach(function(k){var x=legData(LEGS[k].tr),lado=LEGS[k].lado,p=isNaN(x.po)?NaN:(lado==='over'?x.po:1-x.po),
-  nombre=x.td?(lado==='over'?'Sí anota':'No anota'):(lado==='over'?'OVER':'UNDER')+' '+(x.ln!==''?x.ln:'?');
+  nombre=x.td?(lado==='over'?'Más de 0.5 TD (anota)':'Menos de 0.5 TD (no anota)'):(lado==='over'?'Más de':'Menos de')+' '+(x.ln!==''?x.ln:'?');
   if(isNaN(p)){miss++;}else use.push({pid:x.pid,team:x.team,game:x.game,pos:x.pos,mkt:x.mkt,p:p,lado:lado});
   rows+='<div class="pl-row"><b>'+x.nm+'</b> <span class="rol">'+x.lab+'</span> <button data-k="'+k+'" class="pbtn">'+nombre+'</button> <span class="pp">'+(isNaN(p)?'escribe la línea en su fila':Math.round(p*100)+'%')+'</span> <button data-q="'+k+'" class="pbtn x" title="Quitar">×</button></div>';});
  var j=use.length>=1?joint(use):null,txt='';
- if(j&&use.length>=2){var f=j.con/j.ind-1,o=parseFloat(odds),extra='';
-  if(!isNaN(o)&&(o<=-100||o>=100)){var ip=o<0?-o/(-o+100):100/(o+100),e=j.con-ip;extra=' · tu cuota exige '+Math.round(ip*100)+'% → '+(e>=0.02?'<b class="pos">posible valor ('+(e*100>=0?'+':'')+(e*100).toFixed(1)+' pts)</b>':'sin ventaja ('+(e*100>=0?'+':'')+(e*100).toFixed(1)+' pts)');}
-  txt='Si fueran independientes: <b>'+(j.ind*100).toFixed(1)+'%</b> · Con la correlación medida: <b>'+(j.con*100).toFixed(1)+'%</b> ('+(f>=0?'+':'')+(f*100).toFixed(0)+'% relativo) · cuota justa '+(cuotaJusta(j.con)>0?'+':'')+cuotaJusta(j.con)+extra;}
+ if(j&&use.length>=2){var f=j.con/j.ind-1,o=dnum(odds),extra='';
+  if(!isNaN(o)){var ip=1/o,e=j.con-ip;extra=' · tu cuota exige '+Math.round(ip*100)+'% → '+(e>=0.02?'<b class="pos">posible valor ('+(e*100>=0?'+':'')+(e*100).toFixed(1)+' pts)</b>':'sin ventaja ('+(e*100>=0?'+':'')+(e*100).toFixed(1)+' pts)');}
+  txt='Si fueran independientes: <b>'+(j.ind*100).toFixed(1)+'%</b> · Con la correlación medida: <b>'+(j.con*100).toFixed(1)+'%</b> ('+(f>=0?'+':'')+(f*100).toFixed(0)+'% relativo) · cuota justa '+cuotaJusta(j.con)+extra;}
  else if(use.length===1)txt='Una sola apuesta: '+Math.round(use[0].p*100)+'%. Marca otra casilla para combinarlas.';
  else txt='Escribe la línea de cada jugador seleccionado.';
  d.innerHTML='<div class="pl-h"><b>Combinada ('+ks.length+')</b> <button id="parlayClear" class="pbtn">limpiar</button></div>'+rows+'<div class="pl-r">'+txt+'</div>'+
-  '<div class="pl-o">Cuota que te pagan por la combinada (ej. +450): <input id="parlayOdds" type="number" value="'+odds+'"></div>'+
+  '<div class="pl-o">Cuota decimal que te pagan por la combinada (ej. 5.50): <input id="parlayOdds" type="number" step="0.01" min="1.01" inputmode="decimal" value="'+odds+'"></div>'+
   '<div class="pl-n">La correlación entre jugadores del mismo partido es modesta (QB con sus receptores ≈ +0.15; entre receptores ≈ 0). Apuestas de partidos distintos se tratan como independientes. Muchas casas ya ajustan sus combinadas del mismo partido. No es asesoría financiera.</div>';document.body.style.paddingBottom=d.offsetHeight+'px';}
 </script>
 """
@@ -163,11 +163,11 @@ def _inputs(line_n, auto=None) -> str:
     """Cuadros de linea y cuotas. Si hay linea automatica (Kalshi / casa), ya vienen llenos."""
     if auto:
         return (f'<div class="calc"><label>línea<input class="lin" type="number" step="0.5" value="{auto["linea"]:g}"></label>'
-                f'<label>over<input class="cuo" type="number" value="{auto["over"]}"></label>'
-                f'<label>under<input class="cuu" type="number" value="{auto["under"]}"></label></div>'
+                f'<label>Más de<input class="cuo" type="number" step="0.01" min="1.01" inputmode="decimal" value="{fd(auto["over"])}"></label>'
+                f'<label>Menos de<input class="cuu" type="number" step="0.01" min="1.01" inputmode="decimal" value="{fd(auto["under"])}"></label></div>'
                 f'<small class="auto">{FUENTE.get(auto["fuente"], auto["fuente"])} (automática)</small>')
     return (f'<div class="calc"><label>línea<input class="lin" type="number" step="0.5" placeholder="{line_n:g}"></label>'
-            f'<label>over<input class="cuo" type="number" value="-110"></label><label>under<input class="cuu" type="number" value="-110"></label></div>')
+            f'<label>Más de<input class="cuo" type="number" step="0.01" min="1.01" inputmode="decimal" value="1.91"></label><label>Menos de<input class="cuu" type="number" step="0.01" min="1.01" inputmode="decimal" value="1.91"></label></div>')
 
 
 def _trk(rank, etiqueta) -> str:
@@ -219,6 +219,13 @@ def matchup_html(m: dict, rbs=None) -> str:
             f'<div class="mcols">{"".join(cols)}</div>{_rbs_html(m, rbs)}</details>')
 
 
+def _rol_txt(rol, pos) -> str:
+    """Etiqueta de rol unica: «WR1» (puesto + lugar en el depth chart); sin lugar, solo el puesto. Antes salia «WR1 WR» o «WR» segun la tabla."""
+    r = "" if rol is None or (isinstance(rol, float) and pd.isna(rol)) else str(rol).strip()
+    p = str(pos).strip()
+    return html.escape(r if r.startswith(p) and r else (f"{p} {r}".strip() if r else f"{p} (sin depth)"))
+
+
 def _chips(x) -> str:
     out = ""
     e = ESTADO.get(x.estado, "")
@@ -264,7 +271,7 @@ def _hist(cres, pid, market, cur, is_home, tasas=None, que="cubrió") -> str:
         if not h:
             continue
         c, n, cl, nl, cv, nv = h
-        pc = lambda a, b: f"{a}/{b}" + (f" ({a / b * 100:.0f}%)" if b else "")
+        pc = lambda a, b: f"{a}/{b} ({a / b * 100:.0f}%)" if b else "sin partidos"
         loc = f"local {pc(cl, nl)}"
         vis = f"visita {pc(cv, nv)}"
         loc, vis = (f'<span class="v">{loc}</span>', vis) if is_home else (loc, f'<span class="v">{vis}</span>')
@@ -272,7 +279,7 @@ def _hist(cres, pid, market, cur, is_home, tasas=None, que="cubrió") -> str:
         if tasas and (season, market) in tasas and season == cur - 1:
             lig = f' <small>· liga {tasas[(season, market)] * 100:.0f}%</small>'
         lin.append(f"<b>{season}</b>: {pc(c, n)} · {loc} · {vis}{lig}")
-    return "<br>".join(lin) if lin else '<small>sin partidos previos</small>'
+    return "<br>".join(lin) if lin else '<small class="vacio-i">sin partidos previos (jugador nuevo o sin muestra todavía)</small>'
 
 
 def _leg(x, mkt=None) -> str:
@@ -299,7 +306,7 @@ def _fila(x, fmt_n, cres=None, cur=0, tasas=None, auto=None) -> str:
     aj = x.ajuste * 100
     cls = "pos" if aj > 0 else "neg"
     return (f'<tr data-mu="{x.mu:.4f}" data-phi="{x.phi:.4f}" data-s="{x.s_cal:.3f}"{_pj(x, auto)}{_leg(x)}>'
-            f'<td>{_CAJA}<span class="pl">{html.escape(x.name)}</span><span class="rol">{x.rol} {x.position}</span>{_chips(x)}</td>'
+            f'<td>{_CAJA}<span class="pl">{html.escape(x.name)}</span><span class="rol">{_rol_txt(x.rol, x.position)}</span>{_chips(x)}</td>'
             f'<td>{x.label}</td><td class="num">{fmt_n(x.base)}</td><td class="num"><b>{fmt_n(x.mu)}</b></td>'
             f'<td>{rng} <small>{fmt_n(x.p25)}–{fmt_n(x.p75)}</small></td>'
             f'<td class="num">{fmt_n(x.line_n)} <small class="{cls}">({aj:+.0f}%)</small></td>'
@@ -334,7 +341,7 @@ def props_html(game, home, away, P: pd.DataFrame, perf: pd.DataFrame, excl: pd.D
             key = "e_att" if pos == "QB" else "e_car" if pos == "RB" else "e_tgt"
             resto += list(u.sort_values(key, ascending=False).player_id)
         perf_rows = "".join(
-            f'<tr><td><span class="pl">{html.escape(r.name)}</span><span class="rol">{r.rol} {r.position}</span>{_chips(r)}</td>'
+            f'<tr><td><span class="pl">{html.escape(r.name)}</span><span class="rol">{_rol_txt(r.rol, r.position)}</span>{_chips(r)}</td>'
             f'<td>{_perfil_txt(r.position, pf.loc[r.player_id] if r.player_id in pf.index else None)}</td></tr>'
             for r in uniq.set_index("player_id").loc[sel].reset_index().itertuples())
         n_dec = lambda v: f"{v:.0f}" if v >= 20 else f"{v:.1f}"
@@ -371,24 +378,24 @@ _TH_TD = ('<tr><th>#</th><th>Jugador</th><th>Probabilidad de anotar</th><th>Cuot
 
 def _input_td(a) -> str:
     if a:
-        return f'<input class="cutd" type="number" value="{a["over"]:+d}"><br><small class="auto">{FUENTE.get(a["fuente"], a["fuente"])} (automática)</small>'
-    return '<input class="cutd" type="number" placeholder="+150">'
+        return f'<input class="cutd" type="number" step="0.01" min="1.01" inputmode="decimal" value="{fd(a["over"])}" aria-label="Tu cuota decimal para anotar (por ejemplo 2.50)"><br><small class="auto">{FUENTE.get(a["fuente"], a["fuente"])} (automática)</small>'
+    return '<input class="cutd" type="number" step="0.01" min="1.01" inputmode="decimal" placeholder="2.50" aria-label="Tu cuota decimal para anotar (por ejemplo 2.50)">'
 
 
 def _fila_td(i, x, cres, cur, mostrar_equipo=False, tdauto=None) -> str:
     p = float(x.p_td)
-    from extras import cuota_justa
-    cj = cuota_justa(p)
+    from odds_fmt import fdj
+    cj = fdj(p)
     ctx = f"{x.base:.2f} TD/p reciente · equipo espera {x.implied:.1f} pts"
     eq = f' <span class="rol">{x.team} {"vs" if x.is_home == 1 else "@"} {x.opp}</span>' if mostrar_equipo else ""
     pj = getattr(x, "p_juega", 1.0)
     pa = p * pj if (tdauto and tdauto.get(x.player_id) and pj is not None and pj < 0.995) else p     # Kalshi: el «Si» pierde si no juega
     return (f'<tr data-ptd="{pa:.4f}"{_leg(x, "td")}><td class="num">{i}</td>'
-            f'<td>{_CAJA}<span class="pl">{html.escape(x.name)}</span><span class="rol">{x.rol} {x.position}</span>{eq}{_chips(x)}</td>'
+            f'<td>{_CAJA}<span class="pl">{html.escape(x.name)}</span><span class="rol">{_rol_txt(x.rol, x.position)}</span>{eq}{_chips(x)}</td>'
             f'<td><span class="bar"><i style="width:{min(p / 0.7, 1) * 100:.0f}%"></i></span><span class="tdp">{p * 100:.0f}%</span></td>'
-            f'<td class="num">{cj:+d}</td><td class="mn">{ctx}</td>'
+            f'<td class="num">{cj}</td><td class="mn">{ctx}</td>'
             f'<td class="hist">{_hist(cres, x.player_id, "td", cur, x.is_home == 1)}</td>'
-            f'<td>{_input_td(tdauto.get(x.player_id) if tdauto else None)}</td><td class="res">escribe la cuota (ej. +150) →</td></tr>')
+            f'<td>{_input_td(tdauto.get(x.player_id) if tdauto else None)}</td><td class="res">escribe la cuota decimal (ej. 2.50) →</td></tr>')
 
 
 def td_html(game, home, away, P: pd.DataFrame, cres=None, cur: int = 0, tdauto=None) -> str:
@@ -416,7 +423,7 @@ def td_semana_html(P: pd.DataFrame, cres=None, cur: int = 0, n: int = 20, tdauto
     return (f'<div class="scroll"><table class="pt">{_TH_TD}{rows}</table></div>')
 
 
-_TH_V = ('<tr><th>Jugador</th><th>Mercado</th><th>Umbral</th><th>Compra «Sí» (ask)</th><th>Compra «No» (1 − bid)</th>'
+_TH_V = ('<tr><th>Jugador</th><th>Mercado</th><th>Umbral</th><th>Compra «Más de» (ask)</th><th>Compra «Menos de» (1 − bid)</th>'
          '<th>Modelo: prob. de llegar</th><th>Mezcla con Kalshi</th><th>Mejor lado</th><th>Ventaja neta (mezcla)</th></tr>')
 
 
@@ -425,11 +432,24 @@ def _fila_v(r, n=0) -> str:
     si = f"{r.ask * 100:.0f}¢" if pd.notna(r.ask) else "—"
     no = f"{(1 - r.bid) * 100:.0f}¢" if pd.notna(r.bid) else "—"
     cls = "pos" if r.edge >= 0.03 else ""
-    lado = "Sí (over)" if r.lado.startswith("SI") else "No (under)"
+    lado = "Más de" if r.lado.startswith("SI") else "Menos de"
     marca = "✔ " if r.edge >= 0.03 else ""
     return (f'<tr><td><span class="pl">{html.escape(r.jugador)}</span><span class="rol">{r.equipo} vs {r.rival}</span></td><td>{r.label}</td>'
             f'<td class="num">{um}</td><td class="num">{si}</td><td class="num">{no}</td><td class="num">{r.p_modelo * 100:.0f}%</td><td class="num">{r.p_mezcla * 100:.0f}%</td>'
             f'<td>{lado}</td><td class="num {cls}"><b>{marca}{r.edge * 100:+.1f} pts</b></td></tr>')
+
+
+def _dm(c) -> str:
+    """«2026-11-18 17:47:10» -> «18/11 17:47»."""
+    try:
+        return pd.Timestamp(c).strftime("%d/%m %H:%M")
+    except Exception:
+        return str(c)
+
+
+def _vacio(titulo: str, motivo: str) -> str:
+    """Estado vacio: ninguna tabla se muestra sin filas; se explica el motivo."""
+    return f'<div class="vacio"><span class="vacio-ic" aria-hidden="true">ⓘ</span><div><b>{html.escape(titulo)}.</b> {html.escape(motivo)}</div></div>'
 
 
 def casas_juego_html(game, V: pd.DataFrame, n: int = 12) -> str:
@@ -438,16 +458,18 @@ def casas_juego_html(game, V: pd.DataFrame, n: int = 12) -> str:
         return ""
     g = V[(V.game_id == game) & V.edge.notna() & ~V.discrepa].sort_values("edge", ascending=False)
     if g.empty:
-        return ""
+        return _vacio("Sin precios de Kalshi", "Kalshi no publicó precios útiles para este partido.")
     top = g[g.edge >= 0.03].head(n)
-    cuerpo = "".join(_fila_v(r) for r in top.itertuples()) if len(top) else \
-        '<tr><td colspan="9">Ningún escalón supera 3 puntos de ventaja neta: el modelo y el mercado coinciden en este partido.</td></tr>'
+    if len(top):
+        tabla = f'<div class="scroll"><table class="pt">{_TH_V}{"".join(_fila_v(r) for r in top.itertuples())}</table></div>'
+    else:
+        tabla = _vacio("Sin ventaja en Kalshi para este partido", "Kalshi sí publicó precios para este partido y ninguno supera 3 puntos de ventaja neta: el modelo y el mercado coinciden.")
     return (f'<details class="sub2"><summary>Líneas de Kalshi vs modelo ({len(g)} precios útiles, {len(top)} con ventaja ≥ 3 pts)</summary>'
             '<p class="explain">Kalshi publica «escaleras» (p. ej. 40+, 50+, 60+ yardas) con un precio por cada escalón. El precio es una probabilidad: '
-            '60¢ = 60 %. <b>Comprar «Sí» cuesta el ask; comprar «No» cuesta 1 − bid.</b> La ventaja neta usa una <b>mezcla</b> (80 % precio de Kalshi + 20 % modelo (10 % en acarreos y yardas por tierra), el peso que mejor funcionó al medirlo contra partidos ya jugados) menos lo que cuesta, '
+            '60¢ = 60 %. <b>Comprar «Más de» cuesta el ask; comprar «Menos de» cuesta 1 − bid.</b> La ventaja neta usa una <b>mezcla</b> (80 % precio de Kalshi + 20 % modelo (10 % en acarreos y yardas por tierra), el peso que mejor funcionó al medirlo contra partidos ya jugados) menos lo que cuesta, '
             'ya descontada la comisión de Kalshi (≈ 7 % × precio × (1 − precio)). Solo se muestran precios con diferencia compra-venta ≤ 10¢. '
             'Los mercados de Kalshi suelen tener poca liquidez: el precio puede no estar disponible en cantidad.</p>'
-            f'<div class="scroll"><table class="pt">{_TH_V}{cuerpo}</table></div></details>')
+            + tabla + '</details>')
 
 
 def discrepancias_html(V: pd.DataFrame, n: int = 14) -> str:
@@ -483,17 +505,19 @@ def casas_semana_html(V: pd.DataFrame, L: pd.DataFrame, n: int = 15) -> str:
         return ('<div class="box"><p>No pude leer líneas de Kalshi en esta ejecución (sin internet o sin mercados abiertos). '
                 'El reporte funciona igual: escribe tú la línea en las calculadoras.</p></div>')
     cap = L.groupby("fuente").capturado.max().to_dict()
-    nota = " · ".join(f"{FUENTE.get(f, f)}: leído {c} UTC" for f, c in cap.items())
+    nota = " · ".join(f"{FUENTE.get(f, f)}: leído el {_dm(c)} UTC" for f, c in cap.items())
     top = V[V.edge.notna() & ~V.discrepa & (V.edge >= 0.03)].sort_values("edge", ascending=False).head(n) if V is not None and len(V) else pd.DataFrame()
-    cuerpo = "".join(_fila_v(r) for r in top.itertuples()) if len(top) else \
-        '<tr><td colspan="9">Ningún precio supera 3 puntos de ventaja neta frente al modelo.</td></tr>'
+    if len(top):
+        tabla = f'<div class="scroll"><table class="pt">{_TH_V}{"".join(_fila_v(r) for r in top.itertuples())}</table></div>'
+    else:
+        tabla = _vacio("Ningún precio de Kalshi supera 3 puntos de ventaja neta", "Es lo normal: el modelo y el mercado coinciden.")
     return (f'<p class="explain">El modelo lee solo los precios de Kalshi ({nota}) y los compara con su probabilidad. '
             'Abajo, los escalones donde la mezcla (80 % Kalshi + 20 % modelo) ve más de 3 puntos de ventaja <b>después de comisión</b>; con este método casi nunca hay alguno, y eso es lo normal. '
             '<b>Ojo:</b> si el modelo y un mercado de apuestas discrepan mucho, lo más probable es que el mercado sepa algo que el modelo no '
             '(lesión de última hora, rol del jugador, clima), no que el mercado esté equivocado. En las pruebas, el modelo mejora poco al promedio simple. '
             '<b>Medido contra el propio Kalshi</b> (partidos de 2025 y 2026, ver <code>evaluar_mercado.py</code>), el precio tuvo menos error que el modelo y mezclarlos mejoró apenas (diferencia dentro del ruido): estas «ventajas» son más probablemente ruido que valor. '
             'Úsalo como una segunda opinión y revisa lesiones antes de decidir. No es asesoría financiera.</p>'
-            f'<div class="scroll"><table class="pt">{_TH_V}{cuerpo}</table></div>' + discrepancias_html(V))
+            + tabla + discrepancias_html(V))
 
 
 def fig_top(top: pd.DataFrame) -> str:
@@ -523,7 +547,7 @@ def top_html(top: pd.DataFrame, auto=None) -> str:
         d = lambda v: f"{v:.0f}" if v >= 20 else f"{v:.1f}"
         rows.append(f'<tr data-mu="{x.mu:.4f}" data-phi="{x.phi:.4f}" data-s="{x.s_cal:.3f}"{_pj(x, auto)}{_leg(x)}><td>{_CAJA}<span class="pl">{html.escape(x.name)}</span>'
                     f'<span class="rol">{x.team} vs {x.opp}</span>{_chips(x)}</td><td>{x.label}</td>'
-                    f'<td class="num">{d(x.line_n)} → <b>{d(x.mu)}</b></td><td><b>{x.lado}</b></td>'
+                    f'<td class="num">{d(x.line_n)} → <b>{d(x.mu)}</b></td><td><b>{str(x.lado).replace('OVER', 'Más de').replace('UNDER', 'Menos de')}</b></td>'
                     f'<td>{x.evid_p * 100:.0f}% <small>(n={x.evid_n}; sin ajuste {x.evid_base * 100:.0f}%)</small></td>'
                     f'<td class="mn">{html.escape(x.razon)}</td>'
                     f'<td>{_inputs(x.line_n, (auto or {}).get((x.player_id, x.market)))}</td><td class="res">escribe la línea →</td></tr>')

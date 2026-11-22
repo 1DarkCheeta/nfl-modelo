@@ -168,7 +168,7 @@ CSS = """
 .py-t{border-collapse:collapse;width:100%;font-size:.85rem}.py-t th,.py-t td{border-bottom:1px solid var(--line);padding:4px 8px;text-align:right;white-space:nowrap}
 .py-t th:first-child,.py-t td:first-child{text-align:left}.py-t th{cursor:pointer;color:var(--ink2);font-weight:600;user-select:none}.py-t th.on{color:var(--blue)}
 .py-t tr.lg td{font-weight:700;border-top:2px solid var(--line)}
-.py-t td.g,.py-x td.g{color:#1f9d4d;font-weight:600}.py-t td.r,.py-x td.r{color:#d33a30;font-weight:600}
+.py-t td.g,.py-x td.g{color:var(--valor);font-weight:600}.py-t td.r,.py-x td.r{color:var(--contra);font-weight:600}
 .py-x table{border-collapse:collapse;width:100%;font-size:.88rem;margin:4px 0 12px}.py-x th,.py-x td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right}
 .py-x th:first-child,.py-x td:first-child{text-align:left}.py-x th{color:var(--ink2);font-weight:600}.py-x td.pr{font-weight:700;color:var(--blue)}
 .py-x h4{margin:14px 0 2px}.py-conf{margin-top:14px}.py-conf ul{margin:6px 0 0 18px;padding:0}

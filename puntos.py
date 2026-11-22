@@ -108,27 +108,27 @@ def _bloque(clave: str, titulo: str, esperado: float, linea: float, nota: str) -
             f'<button type="button" class="pmenos">−1</button><button type="button" class="pmas">+1</button>'
             f'<button type="button" class="preset" title="volver a la línea original">↺</button> <span class="pnota">{html.escape(nota)}</span></div>'
             f'<div class="plin pcuo"><b class="pcuol">Cuota de tu app</b>'
-            f'<label>OVER <input type="text" class="pcq pcqo" inputmode="text" autocomplete="off" placeholder="-110" size="5"></label>'
-            f'<label>UNDER <input type="text" class="pcq pcqu" inputmode="text" autocomplete="off" placeholder="-110" size="5"></label>'
-            f'<span class="pnota">escribe el momio tal como lo ves (ej. -110, +105)</span></div><div class="pcv"></div>'
+            f'<label>Más de <input type="text" class="pcq pcqo" inputmode="decimal" autocomplete="off" placeholder="1.91" size="5"></label>'
+            f'<label>Menos de <input type="text" class="pcq pcqu" inputmode="decimal" autocomplete="off" placeholder="1.91" size="5"></label>'
+            f'<span class="pnota">escribe la cuota decimal tal como la ves (ej. 1.91, 2.05)</span></div><div class="pcv"></div>'
             f'<div class="pres"><div class="pbar"><i></i></div>'
             f'<div class="pnum"><span class="pov"></span><span class="ppu"></span><span class="pun"></span></div>'
             f'<div class="pcj"></div></div><svg class="pdist" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>'
             f'<div class="pax"><span class="pax0"></span><span>puntos</span><span class="pax1"></span></div></div>')
 
 
-COMBOS = [("c0", "{h} cubre el spread y OVER"), ("c1", "{h} cubre el spread y UNDER"),
-          ("c2", "{a} cubre el spread y OVER"), ("c3", "{a} cubre el spread y UNDER"),
-          ("w0", "{h} gana y OVER"), ("w1", "{h} gana y UNDER"),
-          ("w2", "{a} gana y OVER"), ("w3", "{a} gana y UNDER")]
+COMBOS = [("c0", "{h} cubre el spread y Más de"), ("c1", "{h} cubre el spread y Menos de"),
+          ("c2", "{a} cubre el spread y Más de"), ("c3", "{a} cubre el spread y Menos de"),
+          ("w0", "{h} gana y Más de"), ("w1", "{h} gana y Menos de"),
+          ("w2", "{a} gana y Más de"), ("w3", "{a} gana y Menos de")]
 
 
 def _combinadas(g: dict, nombre) -> str:
     sp = -g["spread"] if g.get("spread") is not None else -_redondea(g["m"])      # spread del local como lo publican las casas (−3.5 = favorito)
     h, a = html.escape(nombre(g["home"])), html.escape(nombre(g["away"]))
     filas = "".join(
-        f'<tr data-k="{k}"><td class="l">{t.format(h=h, a=a)}</td><td class="cp"></td><td class="ci"></td><td class="cj"></td>'
-        f'<td><input type="text" class="cq" inputmode="numeric" placeholder="+250" size="5"></td><td class="ce"></td></tr>' for k, t in COMBOS)
+        f'<tr data-k="{k}"><td class="l">{t.format(h=h, a=a)}</td><td class="cp">—</td><td class="ci">—</td><td class="cj">—</td>'
+        f'<td><input type="text" class="cq" inputmode="decimal" placeholder="3.50" size="5" aria-label="Cuota decimal de tu app, por ejemplo 3.50"></td><td class="ce">—</td></tr>' for k, t in COMBOS)
     nota = "línea del mercado" if g["mercado"] else "aún sin línea: punto de partida = lo que espera el modelo"
     return (f'<div class="pcb" data-m="{g["m"]}" data-t="{g["t"]}" data-sp0="{sp:g}" data-lt0="{g["lt"]:g}">'
             f'<div class="pt"><b>Combinadas del mismo partido</b> <span class="pexp">probabilidad de que pasen las dos cosas a la vez</span></div>'
@@ -159,7 +159,7 @@ def html_puntos(PT: dict | None, nombre=lambda t: t, partes: bool = False):
         if abs(g.get("dw", 0)) >= 0.3:
             wx += f'<p class="pwn">El modelo ya incluye el viento pronosticado: mueve el total esperado {g["dw"]:+.1f} pts frente a un día de viento normal (~{g["vn"]} mph).</p>'
         if g.get("qb"):
-            wx += '<p class="pwn pqb">⚠ Mariscales: ' + html.escape(" ".join(g["qb"])) + " La línea del mercado ya lo incluye.</p>"
+            wx += '<div class="pwn pqb">⚠ Mariscales:<ul>' + "".join(f"<li>{html.escape(t)}</li>" for t in g["qb"]) + "</ul>La línea del mercado ya lo incluye.</div>"
         cards.append(
             f'<div class="eqcard pjuego" data-k="{g["id"]}" data-g="{g["id"]}"><h3>{html.escape(nombre(g["away"]))} @ {html.escape(nombre(g["home"]))} '
             f'<small>semana {g["sem"]} · {g["fecha"]}</small></h3>{wx}{aviso}'
@@ -170,17 +170,17 @@ def html_puntos(PT: dict | None, nombre=lambda t: t, partes: bool = False):
     q = json.dumps(PT["q"], separators=(",", ":"))
     datos = (f'<script id="pq" type="application/json">{q}</script>\n'
              f'<script id="pqp" type="application/json">{json.dumps(PT["pares"], separators=(",", ":"))}</script>')
-    html_all = f"""<h2 id="puntos">Over / under de puntos (total y por equipo)</h2>
-<p class="explain">Para cada partido de esta semana y la siguiente: cuántos puntos espera el modelo y qué tan probable es que se pasen (<b>over</b>) o se queden cortos (<b>under</b>) de una línea.
-<b>Escribe cualquier línea</b> (o usa −1 / +1) y las probabilidades se recalculan al instante. El gráfico muestra cómo se reparten los marcadores posibles; la parte coloreada es el over.</p>
-<p class="explain"><b>Cómo leerlo:</b> «cuota justa» es la cuota que dejaría el negocio parejo con esa probabilidad; con cuota −110 hace falta acertar 52.4 % para no perder. En el historial (2013-2026) el modelo
+    html_all = f"""<h2 id="puntos">Más de / Menos de en puntos (total y por equipo)</h2>
+<p class="explain">Para cada partido de esta semana y la siguiente: cuántos puntos espera el modelo y qué tan probable es que se pasen (<b>más de</b>) o se queden cortos (<b>menos de</b>) de una línea.
+<b>Escribe cualquier línea</b> (o usa −1 / +1) y las probabilidades se recalculan al instante. El gráfico muestra cómo se reparten los marcadores posibles; la parte coloreada es «Más de».</p>
+<p class="explain"><b>Cómo leerlo:</b> «cuota justa» es la cuota que dejaría el negocio parejo con esa probabilidad; con cuota decimal 1.91 (la de siempre en spread y total) hace falta acertar 52.4 % para no perder. En el historial (2013-2026) el modelo
 <b>no le gana a la línea del mercado</b>: cerca de la línea sus probabilidades rondan 50 %, y eso es lo normal. Donde sí sirve es para lo que el mercado <b>no te muestra</b>: qué tan probable es una línea distinta, o un total por equipo.
 Las probabilidades de líneas lejanas (±14 puntos del esperado) coincidieron con la frecuencia real con un error típico de 1-2 puntos porcentuales.</p>
 <p class="explain"><b>Clima:</b> debajo del nombre de cada partido está el pronóstico del estadio para la hora del juego (Open-Meteo; se vuelve a bajar en cada corrida, así que es más confiable mientras más cerca esté el partido). El modelo de totales ya usa el viento y el techo. En el historial (2013-2026), con
 viento de 15 mph o más el total real quedó en promedio <b>1.5 pts por debajo de la línea</b> (417 partidos, unos 2 errores estándar), pero apostar a eso no dio una ventaja confirmada. Con techo cerrado el clima no afecta.</p>
 <p class="explain"><b>Combinadas del mismo partido:</b> al final de cada tarjeta hay una tabla con la probabilidad de que pasen <b>dos cosas a la vez</b> (por ejemplo «el local cubre y se pasa el total»), con tus líneas de spread y total, y su cuota justa.
 Se calcula con los errores reales del modelo, partido por partido (los del margen y los del total del mismo juego, {PT['pares']['B']['n']:,} casos fuera de muestra). Resultado del historial: <b>el error del margen y el error del total casi no se relacionan</b> (correlación ≈ 0.02),
-así que la probabilidad de la combinada sale casi igual al producto de las dos por separado; la columna «si fueran independientes» te deja comprobarlo. Si la casa te paga una combinada menos de lo que dice la cuota justa, el exceso es su margen. Escribe la cuota de la casa (ej. +250) y verás la ventaja.</p>
+así que la probabilidad de la combinada sale casi igual al producto de las dos por separado; la columna «si fueran independientes» te deja comprobarlo. Si la casa te paga una combinada menos de lo que dice la cuota justa, el exceso es su margen. Escribe la cuota decimal de la casa (ej. 3.50) y verás la ventaja.</p>
 <div class="eqgrid" id="pgrid">{''.join(cards)}</div>
 {datos}"""
     if partes:
@@ -195,18 +195,18 @@ JS = """
 var QS=null;try{QS=JSON.parse(document.getElementById('pq').textContent);}catch(e){}
 if(!QS)return;
 function pc(p){var v=Math.round(p*1000)/10;return v<0.1?'<0.1%':(v>99.9?'>99.9%':v.toFixed(1)+'%');}
-function cj(p){if(p<0.01||p>0.99)return '—';var o=p>=0.5?Math.round(-100*p/(1-p)):Math.round(100*(1-p)/p);return (o>0?'+':'')+o;}
+function cj(p){if(p<0.01||p>0.99)return '—';return (1/p).toFixed(2);}
 function pmf(mu,q){var n=q.length,a=new Array(91).fill(0);for(var i=0;i<n;i++){var x=Math.round(mu+q[i]);if(x<0)x=0;if(x>90)x=90;a[x]+=1/n;}return a;}
-function amer(v){v=parseFloat(String(v).replace(/[−–—]/g,'-').replace('+','').trim());return (isNaN(v)||Math.abs(v)<100)?NaN:v;}
-function imq(o){return o>0?100/(o+100):-o/(-o+100);}
-function dcm(o){return o>0?1+o/100:1+100/(-o);}
+function amer(v){v=String(v).replace(',','.').trim();if(/^[+\u2212\u2013\u2014-]/.test(v))return NaN;v=parseFloat(v);return (isNaN(v)||v<=1||v>100)?NaN:v;}   // cuota decimal entre 1.01 y 100 (sin signo)
+function imq(o){return 1/o;}
+function dcm(o){return o;}
 function mon(x){return (x>=0?'+$':'−$')+Math.abs(x).toFixed(2);}
 function cuotas(b,ov,un,po,pun){
  var out=b.querySelector('.pcv');if(!out)return;var o1=amer(b.querySelector('.pcqo').value),o2=amer(b.querySelector('.pcqu').value),h=[];
  function lado(nom,o,p,win,lose){var q=imq(o),e=(p-q)*100,ev=(win*(dcm(o)-1)-lose)*100;
-  return '<div class="pcl"><b>'+nom+' '+(o>0?'+':'−')+Math.abs(o)+'</b>: el modelo da <b>'+pc(p)+'</b> y la cuota exige <b>'+pc(q)+'</b> → <b class="'+(e>=2?'cpos':(e<0?'cneg':''))+'">'+(e>=0?'+':'')+e.toFixed(1)+' pts</b> · ganancia esperada por $100 apostados: <b class="'+(ev>0?'cpos':'cneg')+'">'+mon(ev)+'</b></div>';}
- if(!isNaN(o1))h.push(lado('OVER',o1,po,ov,un));
- if(!isNaN(o2))h.push(lado('UNDER',o2,pun,un,ov));
+  return '<div class="pcl"><b>'+nom+' '+o.toFixed(2)+'</b>: el modelo da <b>'+pc(p)+'</b> y la cuota exige <b>'+pc(q)+'</b> → <b class="'+(e>=2?'cpos':(e<0?'cneg':''))+'">'+(e>=0?'+':'')+e.toFixed(1)+' pts</b> · ganancia esperada por $100 apostados: <b class="'+(ev>0?'cpos':'cneg')+'">'+mon(ev)+'</b></div>';}
+ if(!isNaN(o1))h.push(lado('Más de',o1,po,ov,un));
+ if(!isNaN(o2))h.push(lado('Menos de',o2,pun,un,ov));
  if(!isNaN(o1)&&!isNaN(o2))h.push('<div class="pcl pcm">Margen de tu app en este mercado: '+((imq(o1)+imq(o2)-1)*100).toFixed(1)+' %</div>');
  out.innerHTML=h.join('');}
 function calc(b){
@@ -216,17 +216,17 @@ function calc(b){
  for(i=0;i<pm.length;i++){if(i>L+1e-9)ov+=pm[i];else if(Math.abs(i-L)<1e-9)pu+=pm[i];else un+=pm[i];}
  var d=1-pu,po=d>0?ov/d:0.5,pun=d>0?un/d:0.5;
  cuotas(b,ov,un,po,pun);
- b.querySelector('.pov').innerHTML='OVER <b>'+pc(ov)+'</b>';b.querySelector('.pun').innerHTML='UNDER <b>'+pc(un)+'</b>';
+ b.querySelector('.pov').innerHTML='Más de <b>'+pc(ov)+'</b>';b.querySelector('.pun').innerHTML='Menos de <b>'+pc(un)+'</b>';
  b.querySelector('.ppu').innerHTML=pu>0.0005?'push '+pc(pu):'';
  b.querySelector('.pbar i').style.width=(po*100)+'%';
- b.querySelector('.pcj').innerHTML='cuota justa: OVER '+cj(po)+' · UNDER '+cj(pun)+(pu>0.0005?' <small>(sin contar el push)</small>':'')+' · con −110 hace falta 52.4 %';
+ b.querySelector('.pcj').innerHTML='cuota justa: Más de '+cj(po)+' · Menos de '+cj(pun)+(pu>0.0005?' <small>(sin contar el push)</small>':'')+' · con cuota 1.91 hace falta 52.4 %';
  var c=0,lo=null,hi=null;for(i=0;i<pm.length;i++){c+=pm[i];if(lo===null&&c>=0.10)lo=i;if(hi===null&&c>=0.90)hi=i;}
  b.querySelector('.prng').textContent=lo+' a '+hi;
  var s=[],mx=Math.max.apply(null,pm),w=300/ (hi-lo+30>40?(hi-lo+30):40);
  var x0=Math.max(0,Math.round(mu)-Math.round(150/w)),n=Math.round(300/w);
- for(i=0;i<n;i++){var x=x0+i,p=(pm[x-1]||0)*.25+(pm[x]||0)*.5+(pm[x+1]||0)*.25,h=mx>0?p/mx*60:0,col=x>L+1e-9?'#d9822b':(Math.abs(x-L)<1e-9?'#999':'#4a7fb5');
-  s.push('<rect x="'+(i*w).toFixed(1)+'" y="'+(68-h).toFixed(1)+'" width="'+(w*0.9).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+col+'" opacity=".85"/>');}
- var lx=(L-x0+0.5)*w;s.push('<line x1="'+lx.toFixed(1)+'" x2="'+lx.toFixed(1)+'" y1="2" y2="70" stroke="#222" stroke-width="1.5" stroke-dasharray="3 2"/>');
+ for(i=0;i<n;i++){var x=x0+i,p=(pm[x-1]||0)*.25+(pm[x]||0)*.5+(pm[x+1]||0)*.25,h=mx>0?p/mx*60:0,col=x>L+1e-9?'ho':(Math.abs(x-L)<1e-9?'hp':'hu');
+  s.push('<rect class="'+col+'" x="'+(i*w).toFixed(1)+'" y="'+(68-h).toFixed(1)+'" width="'+(w*0.9).toFixed(1)+'" height="'+h.toFixed(1)+'" opacity=".9"/>');}
+ var lx=(L-x0+0.5)*w;s.push('<line x1="'+lx.toFixed(1)+'" x2="'+lx.toFixed(1)+'" y1="2" y2="70" stroke-width="1.5" stroke-dasharray="3 2"/>');
  b.querySelector('.pdist').innerHTML=s.join('');b.querySelector('.pax0').textContent=x0;b.querySelector('.pax1').textContent=x0+n;
 }
 function todos(){document.querySelectorAll('#pgrid .pbl').forEach(calc);}
@@ -236,7 +236,7 @@ document.addEventListener('click',function(e){var t=e.target,b=t.closest&&t.clos
  else if(t.classList.contains('pmenos')){inp.value=(parseFloat(inp.value||b.dataset.l0)-1);calc(b);}
  else if(t.classList.contains('preset')){inp.value=b.dataset.l0;calc(b);}});
 function marca(){document.querySelectorAll('#pgrid .pjuego').forEach(function(c){var m=c.querySelector('.pav');c.dataset.mod=m?'A':'B';});todos();}
-marca();
+marca();(window.__fr=window.__fr||[]).push(marca);
 })();
 </script>
 """
@@ -250,8 +250,8 @@ input.plineain{width:80px;padding:3px 6px;border:1px solid var(--line);border-ra
 .pnota{font-size:.72rem;color:var(--ink2)}
 .pcuo{border-top:1px dashed var(--line);padding-top:6px}.pcuol{font-size:.82rem}
 input.pcq{width:68px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit;text-align:right}
-.pcv{font-size:.85rem;margin:2px 0 4px}.pcl{margin:2px 0}.pcm{color:var(--ink2);font-size:.78rem}.pcl .cpos{color:#1f9d4d}.pcl .cneg{color:#d33a30}
-.pbar{height:9px;border-radius:5px;background:#4a7fb5;overflow:hidden;margin:4px 0}.pbar i{display:block;height:9px;background:#d9822b}
+.pcv{font-size:.85rem;margin:2px 0 4px}.pcl{margin:2px 0}.pcm{color:var(--ink2);font-size:.78rem}.pcl .cpos{color:var(--valor)}.pcl .cneg{color:var(--contra)}
+.pbar{height:9px;border-radius:5px;background:var(--accent);overflow:hidden;margin:4px 0}.pbar i{display:block;height:9px;background:var(--aviso)}.pdist .ho{fill:var(--aviso)}.pdist .hp{fill:var(--text-2)}.pdist .hu{fill:var(--accent)}.pdist line{stroke:var(--text)}
 .pnum{display:flex;gap:14px;flex-wrap:wrap;font-size:.95rem}.ppu{color:var(--ink2)}
 .pcj{font-size:.78rem;color:var(--ink2);margin-top:2px}
 svg.pdist{width:100%;height:64px;margin-top:4px;display:block}
@@ -267,8 +267,8 @@ JS = JS + """
 var QP=null;try{QP=JSON.parse(document.getElementById('pqp').textContent);}catch(e){}
 if(!QP)return;
 function pc(p){var v=Math.round(p*1000)/10;return v<0.1?'<0.1%':(v>99.9?'>99.9%':v.toFixed(1)+'%');}
-function cj(p){if(p<0.005||p>0.995)return '—';var o=p>=0.5?Math.round(-100*p/(1-p)):Math.round(100*(1-p)/p);return (o>0?'+':'')+o;}
-function imp(o){o=parseFloat(String(o).replace('+',''));if(isNaN(o)||o===0||Math.abs(o)<100)return NaN;return o>0?100/(o+100):-o/(-o+100);}
+function cj(p){if(p<0.005||p>0.995)return '—';return (1/p).toFixed(2);}
+function imp(o){o=String(o).replace(',','.').trim();if(/^[+\u2212\u2013\u2014-]/.test(o))return NaN;o=parseFloat(o);return (isNaN(o)||o<=1||o>100)?NaN:1/o;}   // cuota decimal 1.01-100 (sin signo)
 function calcC(b){
  var card=b.closest('.pjuego'),D=QP[card.querySelector('.pav')?'A':'B'],m=parseFloat(b.dataset.m),t=parseFloat(b.dataset.t);
  var s=parseFloat(b.querySelector('.cspin').value),L=parseFloat(b.querySelector('.ctoin').value),i,n=D.m.length;
@@ -282,13 +282,13 @@ function calcC(b){
   var p=V>0?cnt[j]/V:NaN,pi=(j<2?pa:1-pa)*((j%2===0)?po:1-po);
   r.querySelector('.cp').innerHTML='<b>'+pc(p)+'</b>';r.querySelector('.ci').textContent=pc(pi);r.querySelector('.cj').textContent=cj(p);
   var q=imp(r.querySelector('.cq').value),e=r.querySelector('.ce');
-  if(isNaN(q)){e.textContent='';e.className='ce';}else{var d=(p-q)*100;e.textContent=(d>=0?'+':'')+d.toFixed(1)+' pts';e.className='ce '+(d>=2?'cpos':(d<0?'cneg':''));}}}
+  if(isNaN(q)){e.textContent='—';e.className='ce';}else{var d=(p-q)*100;e.textContent=(d>=0?'+':'')+d.toFixed(1)+' pts';e.className='ce '+(d>=2?'cpos':(d<0?'cneg':''));}}}
  fill('c',a,Vc,Vc?cv/Vc:0.5,Vc?ovc/Vc:0.5);fill('w',w,Vw,Vw?wn/Vw:0.5,Vw?ovw/Vw:0.5);
 }
 function todos(){document.querySelectorAll('#pgrid .pcb').forEach(calcC);}
 document.addEventListener('input',function(e){var t=e.target;if(t.classList&&(t.classList.contains('cspin')||t.classList.contains('ctoin')||t.classList.contains('cq')))calcC(t.closest('.pcb'));});
 document.addEventListener('click',function(e){var t=e.target;if(t.classList&&t.classList.contains('creset')){var b=t.closest('.pcb');b.querySelector('.cspin').value=b.dataset.sp0;b.querySelector('.ctoin').value=b.dataset.lt0;calcC(b);}});
-todos();
+todos();(window.__fr=window.__fr||[]).push(todos);
 })();
 </script>
 """
@@ -300,5 +300,5 @@ CSS = CSS + """
 input.cspin,input.ctoin{width:72px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit;text-align:right}
 input.cq{width:62px;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit;text-align:right}
 .creset{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:2px 9px;font:inherit;cursor:pointer}
-.ce.cpos{color:#0a7d3c;font-weight:600}.ce.cneg{color:#b3261e}
+.ce.cpos{color:var(--valor);font-weight:600}.ce.cneg{color:var(--contra)}
 """

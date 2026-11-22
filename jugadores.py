@@ -165,7 +165,7 @@ def html_jugadores(d: dict | None) -> str:
 <p class="explain"><b>LINEA AC</b> = ¿cubrió la línea? Elige en orden: <b>temporada → equipo → posición → jugador → estadística</b> (yardas de pase, intentos de pase,
 pases completos, TDs, intercepciones, acarreos, yardas por tierra, recepciones, yardas por recepción, targets…; la lista cambia según la posición) y mira semana a semana si
 <b>cubrió la línea</b>: Hit Rate, récord, gráfica con la línea encima y filtro de local o visitante. La línea parte de la «normal» del modelo (o del promedio de la temporada si
-el jugador no tiene proyección); <b>escribe la tuya</b> y todo se recalcula. Over cubre si el resultado real supera la línea; Under, si queda por debajo; un empate (push) no cuenta.
+el jugador no tiene proyección); <b>escribe la tuya</b> y todo se recalcula. «Más de» cubre si el resultado real supera la línea; «Menos de», si queda por debajo; un empate (push) no cuenta.
 Hit Rate = cubrió ÷ (cubrió + no cubrió).</p>
 <div class="jx" id="jx">
 <div class="jx-ctl">
@@ -176,7 +176,7 @@ Hit Rate = cubrió ÷ (cubrió + no cubrió).</p>
 <label>Estadística<select id="jx-mk"></select></label>
 </div>
 <div class="jx-ctl">
-<span class="jx-g">Apuesta <label><input type="radio" name="jx-lado" value="over" checked> Over</label> <label><input type="radio" name="jx-lado" value="under"> Under</label></span>
+<span class="jx-g">Apuesta <label><input type="radio" name="jx-lado" value="over" checked> Más de</label> <label><input type="radio" name="jx-lado" value="under"> Menos de</label></span>
 <span class="jx-g">Sede <label><input type="radio" name="jx-sede" value="" checked> Ambos</label> <label><input type="radio" name="jx-sede" value="1"> Local</label> <label><input type="radio" name="jx-sede" value="0"> Visitante</label></span>
 <label>Línea a evaluar <input id="jx-line" type="number" step="0.5" min="0" style="width:6em"></label>
 <span class="jx-g" id="jx-src"></span>
@@ -194,14 +194,13 @@ CSS = """
 .jx select,.jx input[type=number]{font:inherit;font-size:.95rem;padding:5px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);max-width:100%}
 .jx-w{flex:1 1 280px}.jx-w select{width:100%}
 .jx-t{font-size:1.5rem;font-weight:700;margin:6px 0 0}.jx-s{color:var(--ink2);margin:0 0 8px}
-.jx-warn{background:#fde7c8;color:#7a3d00;border-radius:8px;padding:8px 12px;margin:6px 0}
-@media(prefers-color-scheme:dark){.jx-warn{background:#4a3414;color:#f5d9a8}}
+.jx-warn{background:var(--aviso-bg);color:var(--aviso);border:1px solid var(--aviso);border-radius:8px;padding:8px 12px;margin:6px 0}
 .jx-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:8px 0}
 .jx-c{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .jx-c .l{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
 .jx-c .v{font-size:2.3rem;font-weight:700;line-height:1.1;margin:2px 0}.jx-c .v small{font-size:1rem;font-weight:500;color:var(--ink2)}
 .jx-c .s{font-size:.82rem;color:var(--ink2)}.jx-c.sm .v{font-size:1.5rem}
-.jx-g3{color:#1f9d4d}.jx-r3{color:#d33a30}.jx-a3{color:#c98a00}.jx-m3{color:var(--ink2)}
+.jx-g3{color:var(--valor)}.jx-r3{color:var(--contra)}.jx-a3{color:var(--aviso)}.jx-m3{color:var(--ink2)}
 .jx-chart{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--bg);margin:8px 0;padding:6px}
 .jx-chart svg{display:block;min-width:100%}
 .jx-chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
@@ -249,20 +248,21 @@ function defLine(rows,mk,pid){var p=(D.pr[pid]||{})[mk];
  var pl=rows.filter(function(r){return r.played;}),a=pl.length?pl.reduce(function(s,r){return s+r.actual;},0)/pl.length:null;
  return {v:a==null?0.5:Math.max(0.5,Math.round(a*2)/2),src:'promedio'};}
 // ---- dibujo
+function TC(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
 function chart(rows,unit,lname){
  if(!rows.length)return '';var n=rows.length,bw=44,W=Math.max(420,n*bw+60),Hh=260,top=24,bot=44,ph=Hh-top-bot;
  var mx=0;rows.forEach(function(r){if(r.played&&r.actual>mx)mx=r.actual;if(r.line!=null&&r.line>mx)mx=r.line;});mx=mx<=0?1:mx*1.15;
- var col={'Cubrió':'#1f9d4d','No cubrió':'#d33a30','Push':'#8a8a85','Sin línea':'#2a78d6','No jugó':'#8a8a85'},s='<svg viewBox="0 0 '+W+' '+Hh+'" width="'+W+'" height="'+Hh+'" role="img" aria-label="Estadística por semana">';
- for(var g=0;g<=4;g++){var y=top+ph-ph*g/4;s+='<line x1="40" x2="'+(W-6)+'" y1="'+y+'" y2="'+y+'" stroke="currentColor" opacity=".12"/><text x="36" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="currentColor" opacity=".6">'+fmt(mx*g/4)+'</text>';}
+ var col={'Cubrió':TC('--valor'),'No cubrió':TC('--contra'),'Push':TC('--text-2'),'Sin línea':TC('--info'),'No jugó':TC('--text-2')},s='<svg viewBox="0 0 '+W+' '+Hh+'" width="'+W+'" height="'+Hh+'" role="img" aria-label="Estadística por semana">';
+ for(var g=0;g<=4;g++){var y=top+ph-ph*g/4;s+='<line x1="40" x2="'+(W-6)+'" y1="'+y+'" y2="'+y+'" stroke="currentColor" opacity=".12"/><text x="36" y="'+(y+4)+'" text-anchor="end" font-size="12" fill="currentColor" opacity=".6">'+fmt(mx*g/4)+'</text>';}
  var pts=[];rows.forEach(function(r,k){var x=48+k*bw,cx=x+bw*0.325;
-  if(r.played){var h=ph*r.actual/mx;s+='<rect x="'+x+'" y="'+(top+ph-h)+'" width="'+bw*0.65+'" height="'+Math.max(h,1)+'" rx="3" fill="'+col[r.out]+'"/><text x="'+cx+'" y="'+(top+ph-h-4)+'" text-anchor="middle" font-size="11" font-weight="600" fill="currentColor">'+fmt(r.actual)+'</text>';}
-  else s+='<text x="'+cx+'" y="'+(top+ph-6)+'" text-anchor="middle" font-size="9" fill="currentColor" opacity=".55">no jugó</text>';
+  if(r.played){var h=ph*r.actual/mx;s+='<rect x="'+x+'" y="'+(top+ph-h)+'" width="'+bw*0.65+'" height="'+Math.max(h,1)+'" rx="3" fill="'+col[r.out]+'"/><text x="'+cx+'" y="'+(top+ph-h-4)+'" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">'+fmt(r.actual)+'</text>';}
+  else s+='<text x="'+cx+'" y="'+(top+ph-6)+'" text-anchor="middle" font-size="12" fill="currentColor" opacity=".55">no jugó</text>';
   if(r.line!=null)pts.push([cx,top+ph-ph*r.line/mx]);
-  s+='<text x="'+cx+'" y="'+(Hh-26)+'" text-anchor="middle" font-size="10" fill="currentColor">S'+r.week+'</text><text x="'+cx+'" y="'+(Hh-13)+'" text-anchor="middle" font-size="9" fill="currentColor" opacity=".7">'+(r.ha===0?'@':'vs')+' '+H(r.opp||'—')+'</text>';});
- if(pts.length){s+='<polyline fill="none" stroke="#e6a100" stroke-width="2" stroke-dasharray="4 3" points="'+pts.map(function(p){return p[0]+','+p[1];}).join(' ')+'"/>';pts.forEach(function(p){s+='<path d="M'+p[0]+' '+(p[1]-6)+' l6 6 l-6 6 l-6 -6z" fill="#e6a100"/>';});}
+  s+='<text x="'+cx+'" y="'+(Hh-26)+'" text-anchor="middle" font-size="12" fill="currentColor">S'+r.week+'</text><text x="'+cx+'" y="'+(Hh-13)+'" text-anchor="middle" font-size="12" fill="currentColor" opacity=".7">'+(r.ha===0?'@':'vs')+' '+H(r.opp||'—')+'</text>';});
+ if(pts.length){s+='<polyline fill="none" stroke="'+TC('--aviso')+'" stroke-width="2" stroke-dasharray="4 3" points="'+pts.map(function(p){return p[0]+','+p[1];}).join(' ')+'"/>';pts.forEach(function(p){s+='<path d="M'+p[0]+' '+(p[1]-6)+' l6 6 l-6 6 l-6 -6z" fill="'+TC('--aviso')+'"/>';});}
  return '<div class="jx-chart">'+s+'</svg></div><div class="jx-s">Barras: '+H(unit)+' reales de cada semana (verde = cubrió, rojo = no cubrió, gris = push). Línea punteada: '+H(lname)+'.</div>';}
-function chips(rows,extra){var cl={'Cubrió':['#1f9d4d','✓ Cubrió'],'No cubrió':['#d33a30','✗ No cubrió'],'Push':['#8a8a85','= Push'],'Sin línea':['#2a78d6','sin línea'],'No jugó':['#8a8a85','no jugó']};
- return '<div class="jx-chips">'+rows.map(function(r){var c=cl[r.out]||['#8a8a85',r.out],t=c[1];if(extra&&(r.res==='over'||r.res==='under'))t+=' · '+(r.res==='over'?'Over':'Under');
+function chips(rows,extra){var cl={'Cubrió':[TC('--valor'),'✓ Cubrió'],'No cubrió':[TC('--contra'),'✗ No cubrió'],'Push':[TC('--text-2'),'= Push'],'Sin línea':[TC('--info'),'sin línea'],'No jugó':[TC('--text-2'),'no jugó']};
+ return '<div class="jx-chips">'+rows.map(function(r){var c=cl[r.out]||[TC('--text-2'),r.out],t=c[1];if(extra&&(r.res==='over'||r.res==='under'))t+=' · '+(r.res==='over'?'Más de':'Menos de');
   return '<div class="jx-chip" style="border-color:'+c[0]+'"><div class="w">S'+r.week+' · '+(r.ha===0?'@':'vs')+' '+H(r.opp||'')+'</div><div class="v">'+(r.played?fmt(r.actual):'—')+(r.line!=null?' <small>/ '+fmt(r.line)+'</small>':'')+'</div><div class="o" style="color:'+c[0]+'">'+t+'</div></div>';}).join('')+'</div>';}
 function hrc(h){return h==null?'jx-m3':(h>=0.6?'jx-g3':(h<=0.4?'jx-r3':'jx-a3'));}
 function hrt(h){return h==null?'—':Math.round(h*100)+'%';}
@@ -297,7 +297,7 @@ function render(resetLine){
  var h=head;
  if(p[2]==='RB'){var cf=frame(pid,sea,'rush_att').filter(function(r){return r.played;}),cs=sede(cf,sd),av=function(a){return a.length?fmt(a.reduce(function(s,r){return s+r.actual;},0)/a.length):'—';},l3=cs.slice(-3);
   h+='<h4>🏃 Acarreos por partido</h4><div class="jx-k">'+card('Acarreos por partido',av(cs),cs.length+' partidos'+sTxt,1)+card('Últimos 3 partidos',av(l3),'acarreos por partido',1)+card('Como local',av(cf.filter(function(r){return r.ha===1;})),'acarreos por partido',1)+card('Como visitante',av(cf.filter(function(r){return r.ha===0;})),'acarreos por partido',1)+'</div>';}
- h+='<div class="jx-k">'+card('Hit Rate','<span class="'+hrc(S.hr)+'">'+hrt(S.hr)+'</span>',(lado==='over'?'Over':'Under')+sTxt+' · '+S.games+' partidos con línea ('+(st.src==='propia'?'línea propia':'línea del '+st.src)+')')
+ h+='<div class="jx-k">'+card('Hit Rate','<span class="'+hrc(S.hr)+'">'+hrt(S.hr)+'</span>',(lado==='over'?'Más de':'Menos de')+sTxt+' · '+S.games+' partidos con línea ('+(st.src==='propia'?'línea propia':'línea del '+st.src)+')')
   +card('Récord','<span class="jx-g3">'+S.hits+'</span> – <span class="jx-r3">'+S.misses+'</span>',S.hits+(S.hits===1?' vez cubrió':' veces cubrió')+' · '+S.misses+' no cubrió'+(S.pushes?' · '+S.pushes+' push':''))
   +(S.avgL!=null?card('Promedio real vs línea',fmt(S.avgA)+' <small>vs '+fmt(S.avgL)+'</small>','Margen medio '+(S.avgM>=0?'+':'')+S.avgM.toFixed(1)):card('Promedio real',fmt(S.avgA),S.played+' partidos jugados'))+'</div>';
  var kk='';[['Como local','1'],['Como visitante','0']].forEach(function(x){var s=summ(sede(all,x[1]));kk+=card(x[0]+' · Hit Rate','<span class="'+hrc(s.hr)+'">'+hrt(s.hr)+'</span>',s.hits+'–'+s.misses+' · '+s.games+' con línea'+(s.avgL!=null?' · prom. real '+fmt(s.avgA)+' vs línea '+fmt(s.avgL):''),1);});
@@ -314,15 +314,15 @@ function prox(p,pid,mk,pr,L,lado){
  if(mk==='td'){po=pr[12];txt='el modelo da <b>'+Math.round(po*100)+'%</b> de que anote al menos un TD (por tierra o recepción).';}
  else{var mu=pr[0],phi=pr[1],s=pr[2];txt='el modelo espera <b>'+fmt(mu)+'</b> (rango típico '+fmt(pr[7])+'–'+fmt(pr[8])+')';
   if(L!=null){var pu=nbCdf(Math.ceil(L)-1,mu,phi),pv=1-nbCdf(Math.floor(L),mu,phi);po=pv/(pv+pu);po=0.5+s*(po-0.5);
-   txt+='; con tu línea de <b>'+fmt(L)+'</b>: OVER <b>'+Math.round(po*100)+'%</b> · UNDER <b>'+Math.round((1-po)*100)+'%</b>.';}}
- if(pr[9]!=null)txt+=' Kalshi: línea '+fmt(pr[9])+(pr[10]!=null?' (Over '+(pr[10]>0?'+':'')+pr[10]+' · Under '+(pr[11]>0?'+':'')+pr[11]+')':'')+'.';
+   txt+='; con tu línea de <b>'+fmt(L)+'</b>: Más de <b>'+Math.round(po*100)+'%</b> · Menos de <b>'+Math.round((1-po)*100)+'%</b>.';}}
+ if(pr[9]!=null)txt+=' Kalshi: línea '+fmt(pr[9])+(pr[10]!=null?' (Más de '+(pr[10]>0?'+':'')+pr[10]+' · Menos de '+(pr[11]>0?'+':'')+pr[11]+')':'')+'.';
  return '<div class="jx-prox"><b>Próximo partido (semana '+wk+', '+(ha===1?'vs':'@')+' '+H(opp)+'):</b> '+txt+'</div>';}
 // ---- puntos totales del partido (equipo del jugador)
 function tot(p,sea,lado,sd){var t=p[3],G=((D.g[sea]||{})[t]||[]);if(!t||!G.length)return '';
  var fin=G.filter(function(x){return x[3]!=null;}).map(function(x){return {week:x[0],opp:x[1],ha:x[2],played:true,actual:x[5],line:x[6],ts:x[3],os:x[4]};});
  var all=grade(fin,lado),vis=sede(all,sd),S=summ(vis),sTxt=sd===''?'':' · como '+(sd==='1'?'local':'visitante');
- var h='<h4>🎯 Puntos totales del partido · '+(lado==='over'?'Over':'Under')+' · '+H(tn(t))+'</h4><div class="jx-s">En cada juego del equipo: ¿el marcador combinado de los dos equipos se fue '+(lado==='over'?'por encima (Over)':'por debajo (Under)')+' de la línea de puntos totales? Usa el mismo filtro de apuesta y de sede.</div>';
- h+='<div class="jx-k">'+card('Hit Rate · totales','<span class="'+hrc(S.hr)+'">'+hrt(S.hr)+'</span>',(lado==='over'?'Over':'Under')+sTxt+' · '+S.games+' juegos con línea',1)
+ var h='<h4>🎯 Puntos totales del partido · '+(lado==='over'?'Más de':'Menos de')+' · '+H(tn(t))+'</h4><div class="jx-s">En cada juego del equipo: ¿el marcador combinado de los dos equipos se fue '+(lado==='over'?'por encima (Más de)':'por debajo (Menos de)')+' de la línea de puntos totales? Usa el mismo filtro de apuesta y de sede.</div>';
+ h+='<div class="jx-k">'+card('Hit Rate · totales','<span class="'+hrc(S.hr)+'">'+hrt(S.hr)+'</span>',(lado==='over'?'Más de':'Menos de')+sTxt+' · '+S.games+' juegos con línea',1)
   +card('Récord','<span class="jx-g3">'+S.hits+'</span> – <span class="jx-r3">'+S.misses+'</span>',(S.avgL!=null?'prom. '+fmt(S.avgA)+' pts vs línea '+fmt(S.avgL):'sin partidos con línea')+(S.pushes?' · '+S.pushes+' push':''),1);
  [['Como local','1'],['Como visitante','0']].forEach(function(x){var s=summ(sede(all,x[1]));h+=card(x[0]+' · Hit Rate','<span class="'+hrc(s.hr)+'">'+hrt(s.hr)+'</span>',s.hits+'–'+s.misses+' · '+s.games+' con línea',1);});
  h+='</div>';

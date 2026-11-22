@@ -100,7 +100,7 @@ def registrar_a_mano():
         f["lado"], f["mercado"], f["linea"] = "equipo", "spread", _ask("Handicap de TU equipo (ej. -3.5 o +6.5)")
     else:
         f["lado"], f["mercado"], f["linea"] = _ask("over / under", "over").lower(), "total", _ask("Linea de puntos (ej. 44.5)")
-    f["cuota"] = _ask("Cuota (americana +150 / -110, o precio de Kalshi 44c)")
+    f["cuota"] = _ask("Cuota decimal (ej. 2.50 / 1.91), o precio de Kalshi 44c")
     f["casa"] = _ask("Casa o plataforma")
     f["monto"] = _ask("Monto", "10")
     p = _ask("Probabilidad que te daba el modelo (0-1, opcional)")

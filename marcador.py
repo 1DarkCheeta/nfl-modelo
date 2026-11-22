@@ -466,7 +466,12 @@ def calcular(con: sqlite3.Connection, games: pd.DataFrame | None = None, oos: pd
 
 
 # ------------------------------------------------------------------------------------------ HTML
-MK_NOMBRE = {"ganador": "Ganador del partido", "spread": "Cubrir el spread", "total": "Over / under del total"}
+def lt(s):
+    """Etiqueta visible del lado de un total (la lógica interna sigue con OVER/UNDER)."""
+    return str(s).replace("OVER", "Más de").replace("UNDER", "Menos de")
+
+
+MK_NOMBRE = {"ganador": "Ganador del partido", "spread": "Cubrir el spread", "total": "Más de / Menos de del total"}
 MK_BREAK = {"ganador": None, "spread": 0.524, "total": 0.524}
 
 
@@ -477,7 +482,7 @@ def _pc(x, d=0):
 def _un(x):
     if x is None or pd.isna(x):
         return "–"
-    c = "#0a7d3c" if x > 0.005 else ("#b3261e" if x < -0.005 else "inherit")
+    c = "var(--valor)" if x > 0.005 else ("var(--contra)" if x < -0.005 else "inherit")
     return f'<span style="color:{c}">{x:+.2f}</span>'
 
 
@@ -506,7 +511,7 @@ def _ingenuo(res: dict) -> str:
     if "local_cubre" in i:
         partes.append(f"el local cubrió el spread {_pc(i['local_cubre'])} (la visita {_pc(1 - i['local_cubre'])})")
     if "over" in i:
-        partes.append(f"el over pegó {_pc(i['over'])}")
+        partes.append(f"«Más de» pegó {_pc(i['over'])}")
     return ('<p class="explain"><b>Para no engañarnos:</b> en estos mismos partidos ' + ", ".join(partes) + ". Si una racha del modelo se parece a "
             "apostar siempre al mismo lado, lo más probable es que el mercado se haya desviado esas semanas y no que el modelo sepa algo.</p>")
 
@@ -554,14 +559,14 @@ def _curva_svg(rel: pd.DataFrame, titulo: str, w: int = 250, h: int = 250) -> st
     paso_t = 0.1 if hi - lo > 0.35 else 0.05
     for v in np.arange(np.ceil(lo / paso_t - 1e-9) * paso_t, hi + 1e-9, paso_t):
         sv.append(f'<line x1="{m}" x2="{w - 8}" y1="{Y(v):.1f}" y2="{Y(v):.1f}" stroke="currentColor" opacity=".12"/>'
-                  f'<text x="{m - 4}" y="{Y(v) + 3.5:.1f}" font-size="9.5" text-anchor="end" fill="currentColor" opacity=".7">{v * 100:.0f}</text>'
-                  f'<text x="{X(v):.1f}" y="{h - m + 14}" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".7">{v * 100:.0f}</text>')
+                  f'<text x="{m - 4}" y="{Y(v) + 3.5:.1f}" font-size="12" text-anchor="end" fill="currentColor" opacity=".7">{v * 100:.0f}</text>'
+                  f'<text x="{X(v):.1f}" y="{h - m + 14}" font-size="12" text-anchor="middle" fill="currentColor" opacity=".7">{v * 100:.0f}</text>')
     sv.append(f'<line x1="{X(lo):.1f}" y1="{Y(lo):.1f}" x2="{X(hi):.1f}" y2="{Y(hi):.1f}" stroke="currentColor" opacity=".5" stroke-dasharray="4 3"/>')
     pts = " ".join(f"{X(a):.1f},{Y(b):.1f}" for a, b in zip(rel.dijo, rel.paso))
-    sv.append(f'<polyline points="{pts}" fill="none" stroke="#2a78d6" stroke-width="2"/>')
+    sv.append(f'<polyline points="{pts}" fill="none" stroke="var(--info)" stroke-width="2"/>')
     for a, b, n in zip(rel.dijo, rel.paso, rel.n):
-        sv.append(f'<circle cx="{X(a):.1f}" cy="{Y(b):.1f}" r="{3 + min(4, n / 40):.1f}" fill="#2a78d6"><title>dijo {a * 100:.1f} % · pasó {b * 100:.1f} % · {n} partidos</title></circle>')
-    sv.append(f'<text x="{(m + w) / 2:.0f}" y="{h - 4}" font-size="10" text-anchor="middle" fill="currentColor" opacity=".75">lo que dijo el modelo (%)</text></svg>')
+        sv.append(f'<circle cx="{X(a):.1f}" cy="{Y(b):.1f}" r="{3 + min(4, n / 40):.1f}" fill="var(--info)"><title>dijo {a * 100:.1f} % · pasó {b * 100:.1f} % · {n} partidos</title></circle>')
+    sv.append(f'<text x="{(m + w) / 2:.0f}" y="{h - 4}" font-size="12" text-anchor="middle" fill="currentColor" opacity=".75">lo que dijo el modelo (%)</text></svg>')
     return f'<div><h4>{html.escape(titulo)}</h4><div class="chart" style="color:var(--ink)">{"".join(sv)}</div></div>'
 
 
@@ -592,8 +597,8 @@ def _grafica(b: pd.DataFrame) -> str:
     if b.empty:
         return ""
     series = []
-    for nombre, x, col in (("Todas las elecciones del modelo (1 u cada una)", b[~b.valor], "#2a78d6"),
-                           ("Solo «posibles valores»", b[b.valor], "#eb6834")):
+    for nombre, x, col in (("Todas las elecciones del modelo (1 u cada una)", b[~b.valor], "var(--info)"),
+                           ("Solo «posibles valores»", b[b.valor], "var(--aviso)")):
         if x.empty:
             continue
         s = x.groupby("fecha").unid.sum().sort_index().cumsum()
@@ -603,7 +608,7 @@ def _grafica(b: pd.DataFrame) -> str:
     fechas = sorted(set().union(*[set(s.index) for _, s, _ in series]))
     if len(fechas) < 2:
         return '<p class="explain">La gráfica de unidades acumuladas aparece cuando haya partidos de al menos dos fechas distintas.</p>'
-    W, H, pl, pr_, pt, pb = 640, 230, 46, 14, 14, 28
+    W, H, pl, pr_, pt, pb = 640, 230, 56, 14, 14, 30
     allv = [0.0] + [float(v) for _, s, _ in series for v in s.values]
     lo, hi = min(allv), max(allv)
     pad = max(1.0, (hi - lo) * 0.1)
@@ -613,7 +618,7 @@ def _grafica(b: pd.DataFrame) -> str:
     svg = [f'<svg viewBox="0 0 {W} {H}" style="width:100%;max-width:{W}px;height:auto" role="img" aria-label="Unidades acumuladas">']
     for v in np.linspace(lo, hi, 5):
         svg.append(f'<line x1="{pl}" x2="{W - pr_}" y1="{Y(v):.1f}" y2="{Y(v):.1f}" stroke="currentColor" opacity=".12"/>'
-                   f'<text x="{pl - 6}" y="{Y(v) + 4:.1f}" font-size="11" text-anchor="end" fill="currentColor" opacity=".7">{v:+.0f}</text>')
+                   f'<text x="{pl - 6}" y="{Y(v) + 4:.1f}" class="ut" font-size="11" text-anchor="end" fill="currentColor" opacity=".7">{v:+.0f}</text>')
     svg.append(f'<line x1="{pl}" x2="{W - pr_}" y1="{Y(0):.1f}" y2="{Y(0):.1f}" stroke="currentColor" opacity=".55" stroke-dasharray="4 3"/>')
     for nombre, s, col in series:
         s = s.reindex(fechas).ffill().fillna(0)
@@ -621,7 +626,7 @@ def _grafica(b: pd.DataFrame) -> str:
         svg.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="2.4" stroke-linejoin="round"/>')
         svg.append(f'<circle cx="{X(len(fechas) - 1):.1f}" cy="{Y(float(s.values[-1])):.1f}" r="3.5" fill="{col}"/>')
     for i in (0, len(fechas) - 1):
-        svg.append(f'<text x="{X(i):.1f}" y="{H - 8}" font-size="11" text-anchor="{"start" if i == 0 else "end"}" fill="currentColor" opacity=".7">{pd.Timestamp(fechas[i]).strftime("%d/%m")}</text>')
+        svg.append(f'<text x="{X(i):.1f}" y="{H - 8}" class="ut" font-size="11" text-anchor="{"start" if i == 0 else "end"}" fill="currentColor" opacity=".7">{pd.Timestamp(fechas[i]).strftime("%d/%m")}</text>')
     svg.append("</svg>")
     leyenda = "".join(f'<span style="margin-right:14px"><i style="display:inline-block;width:14px;height:3px;background:{c};vertical-align:middle;margin-right:5px"></i>{html.escape(n)}</span>'
                       for n, _, c in series)
@@ -681,7 +686,7 @@ def _recientes(t: pd.DataFrame, nombre, n: int = 16) -> str:
         tiene_t = pd.notna(getattr(r, "pred_tB", np.nan)) and r.pred_tB != r.total_line
         ol = (r.pred_tB > r.total_line) if tiene_t else (r.p_over >= .5)
         d_t = f" ({r.pred_tB - r.total_line:+.1f} vs línea)" if tiene_t else ""
-        ov = ("over" if ol else "under") + d_t
+        ov = ("más de" if ol else "menos de") + d_t
         ro = "push" if r.total == r.total_line else ("over" if r.total > r.total_line else "under")
         ok_c = "" if rc == "push" else (" ✔" if (rc == "local") == sl else " ✘")
         ok_o = "" if ro == "push" else (" ✔" if (ro == "over") == ol else " ✘")
@@ -723,7 +728,7 @@ def _ref_html(ref: dict | None) -> str:
     return (f'<details class="mc-ref"><summary><b>Referencia: el mismo examen en el historial {ref["desde"]}–{ref["hasta"]} (fuera de muestra)</b></summary>'
             '<p class="explain">Predicciones hechas solo con datos anteriores a cada partido (walk-forward), con cuotas de la época. '
             'Es la vara contra la que se compara lo que va en vivo: con miles de partidos el azar casi desaparece. '
-            'Ojo con los «posibles valores»: se eligen por ventaja sobre el precio, y con probabilidades cercanas a 50 % eso favorece a los lados con cuota asimétrica (por ejemplo +105 contra −125). '
+            'Ojo con los «posibles valores»: se eligen por ventaja sobre el precio, y con probabilidades cercanas a 50 % eso favorece a los lados con cuota asimétrica (por ejemplo 2.05 contra 1.80). '
             'Un resultado de 1–2 veces el margen del azar <b>no confirma</b> una ventaja; para fiarse hace falta que se repita en vivo y con CLV positivo.</p>'
             '<div style="overflow-x:auto"><table><thead><tr><th>Mercado</th><th>Partidos</th><th>Acierto del lado del modelo</th><th>Log-loss modelo vs mercado</th>'
             f'<th>«Posibles valores» (ventaja ≥ {UMBRAL * 100:.0f} pts)</th></tr></thead><tbody>{"".join(filas)}</tbody></table></div>{ev_t}</details>')
@@ -802,7 +807,7 @@ def _estado_record(res: dict) -> str:
     pend = res.get("pendientes", 0)
     esp = (f" Hay <b>{pend}</b> partido(s) con elección ya guardada esperando su resultado: entrarán al récord en la primera corrida después de jugarse."
            if pend else "")
-    return ('<p class="rk-est"><b>Se actualiza solo:</b> en cada corrida del reporte (martes, jueves, sábado y domingo) cada partido terminado entra al récord con la '
+    return ('<p class="rk-est"><b>Se actualiza solo:</b> en cada corrida del reporte (cada 3 horas domingo, lunes y jueves; una vez al día martes, miércoles, viernes y sábado) cada partido terminado entra al récord con la '
             f'<b>última elección que hizo el modelo antes del kickoff</b>; nada se cambia después de que se juega. Último partido contado: {ult}.{esp}</p>')
 
 
@@ -816,7 +821,7 @@ def _record_html(res: dict, nombre=lambda t: t) -> str:
     tarjetas = []
     for col, ttl, sub in (("g_ok", "Ganador del partido", "el equipo que el modelo eligió para ganar"),
                           ("s_ok", "Spread", "el lado de la línea que eligió el modelo"),
-                          ("t_ok", "Over / Under", "el lado del total que eligió el modelo")):
+                          ("t_ok", "Más de / Menos de", "el lado del total que eligió el modelo")):
         if col not in R.columns or R[col].dropna().empty:
             continue
         w, l, e = _wl(R[col])
@@ -836,25 +841,27 @@ def _record_html(res: dict, nombre=lambda t: t) -> str:
             extra += f'<br><small><b>Solo con ventaja ≥ {res["umbral"] * 100:.0f} pts:</b> ninguna apuesta alcanzó esa ventaja</small>'
         ult = "".join(('<i class="rk-w">●</i>' if bool(v) else '<i class="rk-l">●</i>') for v in R[col].dropna().tail(10))
         tarjetas.append(
-            f'<div class="rk-card"><span class="rk-t">{ttl}</span><b class="rk-n">{w}-{l}{f"-{e}" if e else ""}</b>'
-            f'<span class="rk-p">{_pc(w / n) if n else "–"} de aciertos · racha {_racha(R[col])}</span>'
+            f'<div class="rk-card"><span class="rk-t">{ttl}</span><b class="rk-n">{w}-{l}</b>'
+            f'<span class="rk-p">{_pc(w / n) if n else "–"} de aciertos · racha {_racha(R[col])}{f" · {e} {"empate" if col == "g_ok" else "push"}{"s" if e != 1 and col != "g_ok" else ""}" if e else " · sin push"}</span>'
             f'<span class="rk-d">{sub}{extra}</span><span class="rk-f" title="últimas 10 elecciones, la más reciente a la derecha">{ult}</span></div>')
     if not tarjetas:
         return ""
     # --- por semana
     filas = []
     for k, x in R.groupby("week"):
-        celdas = []
-        for col in ("g_ok", "s_ok", "t_ok"):
+        celdas, push = [], []
+        for col, nom in (("g_ok", "ganador"), ("s_ok", "spread"), ("t_ok", "total")):
             if col in x.columns:
                 w, l, e = _wl(x[col])
-                celdas.append(f"<td><b>{w}-{l}</b>{f'-{e}' if e else ''}</td>")
+                celdas.append(f"<td><b>{w}-{l}</b></td>")
+                if e:
+                    push.append(f"{nom} {e}")
             else:
                 celdas.append("<td>–</td>")
-        filas.append(f"<tr><td><b>{int(k)}</b></td><td>{len(x)}</td>{''.join(celdas)}</tr>")
+        filas.append(f"<tr><td><b>{int(k)}</b></td><td>{len(x)}</td>{''.join(celdas)}<td>{' · '.join(push) if push else '—'}</td></tr>")
     semanas = ('<h3 style="margin-top:1em">Récord semana por semana</h3><div style="overflow-x:auto"><table><thead><tr><th>Semana</th><th>Partidos</th>'
-               '<th>Ganador</th><th>Spread</th><th>Over / Under</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>"
-               '<p class="rk-leg">Formato <b>ganadas-perdidas</b>; un tercer número es un <b>empate</b> (ganador) o un <b>push</b> (spread o total: la línea cayó exacta y se devuelve la apuesta).</p>')
+               '<th>Ganador</th><th>Spread</th><th>Más de / Menos de</th><th>Push</th></tr></thead><tbody>' + "".join(filas) + "</tbody></table></div>"
+               '<p class="rk-leg">Cada columna es <b>ganadas-perdidas</b>. <b>Push</b> = apuestas que no cuentan ni como ganadas ni como perdidas porque la línea cayó exacta y se devuelve la apuesta (o empate, en ganador); «—» = ninguna esa semana.</p>')
     # --- cada eleccion
     lin = []
     for r in R.sort_values(["fecha", "game_id"], ascending=False).itertuples():
@@ -863,7 +870,7 @@ def _record_html(res: dict, nombre=lambda t: t) -> str:
         s = "–" if not isinstance(getattr(r, "s_eq", None), str) else (
             f"<b>{html.escape(nombre(r.s_eq))} {r.s_linea:+g}</b><br>{_marca(r.s_ok)}")
         o = "–" if not isinstance(getattr(r, "t_lado", None), str) else (
-            f"<b>{r.t_lado} {r.t_linea:g}</b> <small>(total {r.t_total:g})</small><br>{_marca(r.t_ok)}")
+            f"<b>{lt(r.t_lado)} {r.t_linea:g}</b> <small>(total {r.t_total:g})</small><br>{_marca(r.t_ok)}")
         lin.append(f"<tr><td>{pd.Timestamp(r.fecha).strftime('%d/%m')}</td><td>{html.escape(nombre(r.away))} @ {html.escape(nombre(r.home))}<br><small>{r.marcador}</small></td>"
                    f"<td>{g}</td><td>{s}</td><td>{o}</td></tr>")
     detalle = (f'<details class="rk-det"><summary><b>Ver cada elección ({len(R)} partidos)</b></summary><div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Partido</th>'
@@ -902,7 +909,7 @@ Calificados <b>{res['n']}</b> partidos de la temporada ({d0} – {d1}), {_origen
 {cab}
 <div style="overflow-x:auto"><table class="mc-t"><thead><tr><th>Mercado</th><th>Partidos</th><th>Acierto del lado que favorece el modelo</th><th>Unidades (apostando a todos)</th><th>«Posibles valores»</th><th>Log-loss (modelo vs mercado)</th><th>CLV (línea de cierre)</th></tr></thead><tbody>{filas}</tbody></table></div>
 <details class="mc-ayuda"><summary><b>Cómo leer cada columna</b></summary>
-<ul><li><b>Acierto</b>: % de veces que pasó lo que el modelo veía más probable (en spread y total, el lado al que apunta el modelo B: si su margen o total esperado queda por encima o por debajo de la línea). En spread y total el punto de equilibrio con cuota −110 es <b>52.4 %</b>; el intervalo del 95 % muestra cuánto puede ser solo azar.</li>
+<ul><li><b>Acierto</b>: % de veces que pasó lo que el modelo veía más probable (en spread y total, el lado al que apunta el modelo B: si su margen o total esperado queda por encima o por debajo de la línea). En spread y total el punto de equilibrio con cuota decimal 1.91 es <b>52.4 %</b>; el intervalo del 95 % muestra cuánto puede ser solo azar.</li>
 <li><b>Unidades</b>: ganancia o pérdida apostando 1 unidad a ese lado con la cuota real (+ si gana, − si pierde, 0 si hay push).</li>
 <li><b>Posibles valores</b>: solo las apuestas que el reporte marcó con ventaja ≥ {res['umbral'] * 100:.0f} puntos sobre lo que paga el mercado.</li>
 <li><b>Log-loss</b>: mide qué tan buenas son las probabilidades (menos es mejor; 0.693 = lanzar una moneda). Frente al mercado importa que sea <i>menor</i>.</li>
@@ -927,6 +934,6 @@ CSS = """
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(max-width:700px){.grid3{grid-template-columns:1fr}}
 .rk-leg{font-size:.85rem;color:var(--ink2);margin:.4em 0}
 .rk-t{font-weight:700}.rk-n{font-size:2.3rem;line-height:1.1;letter-spacing:.5px}.rk-p{font-size:.9rem}.rk-d,.rk-d small{color:var(--ink2);font-size:.8rem}
-.rk-f{margin-top:4px;letter-spacing:2px;font-size:.9rem}.rk-f i{font-style:normal}.rk-w{color:#0a7d3c}.rk-l{color:#b3261e}.rk-pu{color:var(--ink2)}.rk-det{margin:.8em 0}
+.rk-f{margin-top:4px;letter-spacing:2px;font-size:.9rem}.rk-f i{font-style:normal}.rk-w{color:var(--valor)}.rk-l{color:var(--contra)}.rk-pu{color:var(--ink2)}.rk-det{margin:.8em 0}
 @media(max-width:700px){.rk-grid{grid-template-columns:1fr}}
 """

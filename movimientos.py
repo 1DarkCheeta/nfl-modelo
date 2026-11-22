@@ -203,5 +203,5 @@ Abajo, los jugadores de ataque que cambiaron de equipo esta temporada (detectado
 CSS = """
 .mvt{width:100%;border-collapse:collapse;font-size:.86rem}.mvt th,.mvt td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:center;vertical-align:top}
 .mvt td.l,.mvt th.l{text-align:left}.mvt small{display:block;color:var(--ink2);font-size:.74rem}.mvt tr.mv-p td{background:rgba(217,130,43,.12)}
-.mv-ok{color:var(--yesink)}.mv-no{color:#b3261e;font-weight:600}.mv-n{color:var(--ink2)}
+.mv-ok{color:var(--yesink)}.mv-no{color:var(--contra);font-weight:600}.mv-n{color:var(--ink2)}
 """

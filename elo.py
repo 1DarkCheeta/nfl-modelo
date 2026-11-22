@@ -181,8 +181,8 @@ def calcular(games: pd.DataFrame, cur: int, desde: int | None = None) -> dict:
 
 
 CSS = """
-.elo td.up{color:#0a7d3c;font-weight:600}.elo td.dn{color:#b3261e;font-weight:600}
-.elo td.l,.elo th.l{text-align:left}.elo small{color:#666}
+.elo td.up{color:var(--valor);font-weight:600}.elo td.dn{color:var(--contra);font-weight:600}
+.elo td.l,.elo th.l{text-align:left}.elo small{color:var(--text-2)}
 """
 
 

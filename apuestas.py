@@ -40,7 +40,7 @@ def parse_cuota(x, casa: str = "") -> tuple[float, float, bool]:
     if s.endswith("c") or s.endswith("¢") or (0 < v < 1) or (str(casa).lower() == "kalshi" and 0 < v < 100 and abs(v) < 100 and not s.startswith(("+", "-"))):
         p = v / 100 if v >= 1 else v
         return p, (1 - p) / p, True
-    if 1.01 <= v < 20 and not s.startswith(("+", "-")):          # cuota decimal
+    if 1.01 <= v < 100 and not s.startswith(("+", "-")):          # cuota decimal
         return 1 / v, v - 1, False
     if v >= 100:
         return 100 / (v + 100), v / 100, False
