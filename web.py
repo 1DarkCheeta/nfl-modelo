@@ -700,7 +700,7 @@ function plegar(root){var roots=root.classList&&root.classList.contains('tab')?[
   run[0].parentNode.insertBefore(d,run[0]);run.forEach(function(p){d.appendChild(p);});run=[];}
  kids.forEach(function(k){if(k.tagName==='P'&&k.classList.contains('explain')&&!k.classList.contains('keep')&&k.textContent.length>150){run.push(k);}else{cerrar();}});cerrar();});}
 function envolverTablas(root){$$('table',root).forEach(function(t){if(t.closest('.scroll,.chart,#parlay'))return;var w=document.createElement('div');w.className='scroll';t.parentNode.insertBefore(w,t);w.appendChild(t);});
- $$('img',root).forEach(function(i){i.setAttribute('loading','lazy');i.setAttribute('decoding','async');});}
+ $$('img',root).forEach(function(i){i.setAttribute('loading','eager');i.setAttribute('decoding','async');});}
 function etiquetar(root){$$('table.pt',root).forEach(function(t){var hd=null;$$('tr',t).forEach(function(r){if(!hd&&r.querySelector('th')&&!r.querySelector('td')){hd=[].map.call(r.children,function(c){return c.textContent.trim();});r.classList.add('thr');}});
  if(hd)$$('tr',t).forEach(function(r){if(r.classList.contains('thr'))return;[].forEach.call(r.children,function(c,i){if(hd[i]&&!c.dataset.label)c.dataset.label=hd[i];});});});}
 function vacios(root){$$('table',root).forEach(function(t){var d=[].filter.call(t.querySelectorAll('tr'),function(r){return r.querySelector('td');});
