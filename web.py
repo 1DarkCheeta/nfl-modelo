@@ -22,6 +22,7 @@ import pandas as pd
 
 import clima as CL
 from odds_fmt import fd
+import web_extra as EX
 
 DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
@@ -147,6 +148,7 @@ TIPS = {
     "push": ("Push", "La línea cayó exacta: la apuesta se devuelve y no cuenta ni como ganada ni como perdida."),
     "ic": ("IC 95 %", "Intervalo de confianza: cuánto puede ser solo azar. Si incluye el 0 %, el resultado no se distingue de la suerte."),
     "roi": ("ROI", "Ganancia entre dinero apostado (1 unidad por apuesta). Se muestra con su intervalo de confianza."),
+    "tamano": ("Tamaño sugerido", "Cuántas unidades apostar (1 unidad = 1 % de tu banca): un cuarto de lo que sugiere el criterio de Kelly con la probabilidad del modelo y la cuota, con tope de 1 unidad. Es una guía para no apostar de más, no una garantía: el modelo no ha demostrado ventaja estable."),
     "acierto": ("Acierto", "% de veces que pasó lo que el modelo veía más probable. En spread y total, con cuota decimal 1.91, el punto de equilibrio es 52.4 %."),
 }
 
@@ -380,7 +382,7 @@ def _veredicto_html(d: dict, c: dict) -> str:
                 f'<div class="facts mini3"><div class="fact"><small>Modelo{tip("modelo")}</small><b>{m["p"] * 100:.0f}%</b></div>'
                 f'<div class="fact"><small>Cuota ({fd(m["cuota"])}) exige{tip("implicita")}</small><b>{m["imp"] * 100:.0f}%</b></div>'
                 f'<div class="fact edge"><small>Ventaja{tip("ventaja")}</small><b>{m["edge"] * 100:+.1f} pts</b></div></div>'
-                + (f'<p class="hist">{_esc(lin)}</p>' if lin else "") + '</section>')
+                + (f'<p class="hist">{_esc(lin)}</p>' if lin else "") + f'<p>{EX.boton_registrar(d, m)}</p></section>')
     else:
         m = max(ms, key=lambda t: t["edge"]) if ms else None
         if m:
@@ -490,15 +492,17 @@ def armar(c: dict) -> str:
         return f'<div class="{host_cls}" data-frag="{name}"><div class="cargando" role="status">Cargando…</div></div>'
 
     # ---- Esta semana (inicio): picks, alertas, filtros y tarjetas de partido
-    it1 = [("sem-resumen", "Posibles valores", True), ("sem-vistazo", "Partidos", True), ("qb", "Mariscales", bool(c.get("sec_qb"))),
-           ("movimientos", "Movimientos", bool(c.get("sec_mov"))), ("graficas", "Gráficas", True)]
+    it1 = [("hoy", "Qué apostar hoy", True), ("sem-resumen", "Posibles valores", True), ("sem-vistazo", "Partidos", True), ("qb", "Mariscales", bool(c.get("sec_qb"))),
+           ("movimientos", "Movimientos", bool(c.get("sec_mov"))), ("graficas", "Gráficas", True), ("tarjeta", "Tarjeta para compartir", True)]
     graf = (f'<details class="sec" id="graficas" data-frag="graficas"><span id="equipos"></span><summary>Gráficas de la semana: margen esperado, probabilidad de ganar y ventajas</summary>'
             f'<div class="fhost"><div class="cargando" role="status">Cargando…</div></div></details>')
     frags.append(f'<template id="frag-graficas">{c["graficas"]}</template>')
-    t1 = (f'{_subnav(it1)}<span id="sem-resumen"></span><h2 class="tabsec">Posibles valores de la semana</h2>'
-          f'<p class="leyenda">Ordenados de mayor a menor ventaja. Toca uno para ver el partido.</p>{_picks(js_, c, nm)}{_alertas(js_)}'
+    n_val = sum(1 for d in js_ for m in _mercados(d["x"]) if m["edge"] >= c["me"])
+    t1 = (f'{_subnav(it1)}{EX.hoy_html(js_, c, _mercados, _cuando, _veredicto_chip, vchip, tip)}<span id="sem-resumen"></span>'
+          f'<details class="exp" id="picks-det"><summary>Posibles valores de toda la semana ({n_val})</summary>'
+          f'<p class="leyenda">Ordenados de mayor a menor ventaja. Toca uno para ver el partido.</p>{_picks(js_, c, nm)}</details>{_alertas(js_)}'
           f'<details class="exp" id="resumen-det"><summary>Detalle del resumen y aviso importante</summary>{c["resumen"]}{c["importante"]}</details>'
-          f'<span id="sem-vistazo"></span>{resumen_partidos(js_, nm, c)}{c.get("sec_qb", "")}{c.get("sec_mov", "")}{graf}')
+          f'<span id="sem-vistazo"></span>{resumen_partidos(js_, nm, c)}{c.get("sec_qb", "")}{c.get("sec_mov", "")}{graf}<span id="tarjeta-ancla"></span>{EX.tarjeta_html(js_, c, _mercados, nm)}')
     # ---- Partidos
     t2 = ('<h2 id="partidos" class="tabsec">Partido por partido</h2>'
           '<details class="exp"><summary>Qué hay en cada partido</summary><p class="leyenda">Elige un partido y mira, en sub-pestañas: las apuestas contra el mercado, '
@@ -512,9 +516,9 @@ def armar(c: dict) -> str:
         t3 = '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores y props (corre el programa completo).</div>'
     t3 += (c.get("js_frag") or {}).get("jugadores", "")
     # ---- Calidad
-    it4 = [("kpis", "Resumen", bool(c.get("ev_all"))), ("record", "Récord de elecciones", bool(c.get("sec_mc"))), ("marcador", "Marcador", bool(c.get("sec_mc"))),
+    it4 = [("kpis", "Resumen", bool(c.get("ev_all"))), ("mis-apuestas", "Mis apuestas", True), ("record", "Récord de elecciones", bool(c.get("sec_mc"))), ("marcador", "Marcador", bool(c.get("sec_mc"))),
            ("confianza", "Confianza", bool(c.get("cred"))), ("fiab-props", "Props y TD", bool(c.get("sec_cal"))), ("historial", "Historial", True)]
-    t4 = (_subnav(it4) + _kpis(c) + c.get("sec_mc", "") + (f'<div id="confianza">{c["cred"]}</div>' if c.get("cred") else "") + c.get("sec_cal", "") +
+    t4 = (_subnav(it4) + _kpis(c) + EX.mis_apuestas_html(c) + c.get("sec_mc", "") + (f'<div id="confianza">{c["cred"]}</div>' if c.get("cred") else "") + c.get("sec_cal", "") +
           f'<h2 id="historial">Cómo le fue en semanas anteriores</h2>{c["hist_html"]}')
     # ---- Proyecciones
     t5 = (c["sec_proy"] if c.get("sec_proy") else '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores (corre el programa completo).</div>')
@@ -557,13 +561,15 @@ def armar(c: dict) -> str:
 <header class="top"><h1 id="resumen">NFL · Temporada {c["cur"]}, semana {c["wk"]}</h1>
 <button type="button" class="idxbtn" id="menubtn" aria-haspopup="true" aria-expanded="false" aria-controls="allmenu">☰ Índice</button>
 <p class="sub">{c["sub"]} <span id="fresh" class="fresh" data-gen="{c["generado_iso"]}"></span></p>
-<div class="stale" id="stale" hidden role="alert"></div></header>
+<div class="stale" id="stale" hidden role="alert"></div>{EX.banner_nueva()}</header>
 <div id="allmenu" class="allmenu" hidden>{todo}</div>
 <nav class="appnav" id="nav" aria-label="Secciones">{barra}</nav>
 <div id="contenido">{cuerpo}</div>
 <p class="foot">Datos: nflverse (play-by-play y líneas), ESPN, Ourlads, rbsdm, Kalshi y Open-Meteo. Los porcentajes salen de un modelo estadístico simple y no son garantía de nada.</p>
 <button type="button" id="arriba" class="arriba" title="Volver arriba" aria-label="Volver arriba">↑</button>
 <div id="sheet" class="box" role="dialog" aria-live="polite" hidden><b id="sheet-t"></b><p id="sheet-p"></p><button type="button" id="sheet-x">Entendido</button></div>
+{EX.FORM_HTML}
+<script type="application/json" id="ma-res">{EX.resultados_json(c["games"], c["cur"])}</script>
 <script type="application/json" id="idmap">{idm}</script>
 <script type="application/json" id="tips">{tipsj}</script>
 <meta name="frag-base" content="">
@@ -731,3 +737,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 """
+
+CSS = CSS + EX.CSS_EXTRA
+JS = JS + EX.JS_EXTRA

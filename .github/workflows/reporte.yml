@@ -51,6 +51,14 @@ jobs:
       - name: Correr el modelo
         run: python semana_nfl.py
 
+      - name: Avisar al celular de posibles valores nuevos (Telegram / ntfy; no hace nada si no los configuraste)
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python avisos.py
+
       - name: Guardar la base de datos para la siguiente corrida
         run: |
           rm -rf /tmp/datos && mkdir -p /tmp/datos
