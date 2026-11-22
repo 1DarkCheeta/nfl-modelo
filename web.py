@@ -574,17 +574,20 @@ function cargaJs(name,url,intento){intento=intento||0;return new Promise(functio
  var sc=document.createElement('script');sc.src=url+(intento?'?r='+Date.now():'');sc.async=true;
  sc.onload=function(){sc.remove();if(W[name]!==undefined)ok(W[name]);else mal(new Error('vacio'));};
  sc.onerror=function(){sc.remove();if(intento<1)cargaJs(name,url,intento+1).then(ok,mal);else mal(new Error('red'));};document.head.appendChild(sc);});}
+/* si la pagina quedo vieja (se publico una version nueva y los nombres con hash cambiaron) baja el indice nuevo y reintenta con la ruta actual */
+function refrescar(name,t){var u=location.href.split('#')[0];return fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.text();}).then(function(h){
+ var m=h.match(new RegExp('<template id="frag-'+name+'" data-src="([^"]+)"'));if(!m||m[1]===t.getAttribute('data-src'))throw new Error('igual');t.setAttribute('data-src',m[1]);return cargaJs(name,BASE+m[1]);});}
 function traer(name){if(FRC[name])return FRC[name];var t=document.getElementById('frag-'+name);
  if(!t){FRC[name]=Promise.resolve(null);return FRC[name];}
  var src=t.getAttribute('data-src');
- FRC[name]=!src?Promise.resolve(t.innerHTML):src.slice(-3)==='.js'?cargaJs(name,BASE+src):fetch(BASE+src).then(function(r){if(!r.ok)throw new Error(r.status);return r.text();});
+ FRC[name]=!src?Promise.resolve(t.innerHTML):src.slice(-3)==='.js'?cargaJs(name,BASE+src).catch(function(){return refrescar(name,t);}):fetch(BASE+src).then(function(r){if(!r.ok)throw new Error(r.status);return r.text();});
  FRC[name].catch(function(){delete FRC[name];});return FRC[name];}
 function correr(host){$$('script',host).forEach(function(o){var n=document.createElement('script');if(o.type)n.type=o.type;if(o.id)n.id=o.id;n.text=o.textContent;o.parentNode.replaceChild(n,o);});}
 function montar(name,host,after){if(!host)return Promise.resolve();if(LOADED[name]){return Promise.resolve();}
  return traer(name).then(function(h){if(h===null||LOADED[name])return;LOADED[name]=1;host.innerHTML=h;host.removeAttribute('data-cargando');
   correr(host);post(host);window.__fr.forEach(function(f){try{f(host);}catch(e){}});if(after)after(host);
- },function(){host.innerHTML='<div class="vacio"><span class="vacio-ic" aria-hidden="true">ⓘ</span><div><b>No pude cargar esta parte.</b> Revisa tu conexión (o que la carpeta <code>f</code> esté junto a esta página) y <button type="button" class="chip" data-retry="'+name+'">reintentar</button></div></div>';});}
-document.addEventListener('click',function(e){var r=e.target.closest('[data-retry]');if(r){var h=r.closest('[data-frag],.gp-body');if(h)cargarHost(h);}},true);
+ },function(){host.innerHTML='<div class="vacio"><span class="vacio-ic" aria-hidden="true">ⓘ</span><div><b>No pude cargar esta parte.</b> Revisa tu conexión (o que la carpeta <code>f</code> esté junto a esta página) y <button type="button" class="chip" data-retry="'+name+'">reintentar</button> o <button type="button" class="chip" data-recargar="1">recargar la página</button> (puede que se haya publicado una versión nueva)</div></div>';});}
+document.addEventListener('click',function(e){if(e.target.closest('[data-recargar]')){location.reload();return;}var r=e.target.closest('[data-retry]');if(r){var h=r.closest('[data-frag],.gp-body');if(h)cargarHost(h);}},true);
 function hostDe(el){/* donde se monta el fragmento de un elemento con data-frag */
  if(el.classList.contains('gpanel'))return $('.gp-body',el);if(el.classList.contains('tab'))return el;return $('.fhost',el)||el;}
 function cargarHost(el){var n=el.dataset.frag||(el.closest('[data-frag]')||{dataset:{}}).dataset.frag;var f=el.closest?el.closest('[data-frag]')||el:el;
