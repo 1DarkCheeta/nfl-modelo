@@ -329,6 +329,39 @@ def _una_frase(d: dict, c: dict) -> str:
     return s
 
 
+def _eleccion_ml(x, me: float) -> str:
+    """Elección del modelo en el ganador (moneyline), la tenga o no ventaja: el equipo que el modelo ve más probable.
+    Solo muestra lo que ya calcula predict (p_gana_local, cuota, ventaja); no cambia ningún cálculo ni el veredicto."""
+    try:
+        pl = float(x.p_gana_local)
+    except (TypeError, ValueError):
+        return ""
+    if pl != pl:
+        return ""
+    home = pl >= 0.5
+    eq = x.home_team if home else x.away_team
+    p = pl if home else 1 - pl
+    tiene = bool(x.tiene_ml)
+    odds = x.home_moneyline if home else x.away_moneyline
+    pm = x.p_gana_local_mercado
+    pm = (pm if home else 1 - pm) if (tiene and pm == pm) else None
+    cuota = fd(odds) if tiene else "sin cuota"
+    if tiene and float(x.ml_edge) >= me:
+        lado = str(x.ml_lado).replace(" ML", "")
+        nota = (f"Además tiene posible valor ({float(x.ml_edge) * 100:+.1f} pts)." if lado == eq else
+                f"El posible valor de este mercado está en {_esc(lado)} (no es la elección del modelo): se explica abajo.")
+    elif tiene:
+        nota = "Esta elección es solo informativa: no hay ventaja contra la cuota, así que no es una apuesta recomendada."
+    else:
+        nota = "Esta elección es solo informativa: todavía no hay cuota de ganador publicada."
+    mk = (f'<div class="fact"><small>El mercado le da{tip("implicita")}</small><b>{pm * 100:.0f}%</b></div>' if pm is not None else "")
+    return (f'<section class="verdict box" aria-label="Elección del modelo en el ganador">{vchip("neutral", "Elección del modelo · Ganador (moneyline)")}'
+            f'<h3>Gana {_esc(eq)} <span class="pk-g">(moneyline)</span></h3>'
+            f'<div class="facts mini3"><div class="fact"><small>Modelo{tip("modelo")}</small><b>{p * 100:.0f}%</b></div>{mk}'
+            f'<div class="fact"><small>Cuota</small><b>{cuota}</b></div></div>'
+            f'<p class="explain">{nota}</p></section>')
+
+
 def _veredicto_html(d: dict, c: dict) -> str:
     """Un solo veredicto por apuesta con posible valor (y, si no hay, el mejor lado y por que no alcanza)."""
     x = d["x"]
@@ -337,7 +370,7 @@ def _veredicto_html(d: dict, c: dict) -> str:
     me, hv = c["me"], c.get("hv")
     ms = _mercados(x)
     val = [m for m in ms if m["edge"] >= me]
-    out = []
+    out = [_eleccion_ml(x, me)]
     if val:
         for m in val:
             cl, tx, lin = _veredicto_chip(m["k"], hv)
