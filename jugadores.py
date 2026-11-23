@@ -303,7 +303,9 @@ function render(resetLine){
  var kk='';[['Como local','1'],['Como visitante','0']].forEach(function(x){var s=summ(sede(all,x[1]));kk+=card(x[0]+' · Hit Rate','<span class="'+hrc(s.hr)+'">'+hrt(s.hr)+'</span>',s.hits+'–'+s.misses+' · '+s.games+' con línea'+(s.avgL!=null?' · prom. real '+fmt(s.avgA)+' vs línea '+fmt(s.avgL):''),1);});
  h+='<div class="jx-k">'+kk+'</div>';
  if(!vis.some(function(r){return r.played;}))h+='<div class="jx-s">Este jugador no tiene partidos jugados como '+(sd==='1'?'local':'visitante')+' en esta temporada. Prueba con otra sede.</div>';
- else h+=chart(vis,m[2],st.src==='propia'?'línea propia':'línea a cubrir')+'<h4>¿Cubrió la línea?</h4>'+chips(vis,false);
+ else{var nAll=all.filter(function(r){return r.played;}).length,nVis=vis.filter(function(r){return r.played;}).length;
+  if(sd!==''&&nVis<nAll)h+='<div class="jx-s">Estás viendo solo los partidos como '+(sd==='1'?'local':'visitante')+' ('+nVis+' de '+nAll+' jugados). <button type="button" class="pbtn" data-jx="todos">Ver todos los partidos</button></div>';
+  h+=chart(vis,m[2],st.src==='propia'?'línea propia':'línea a cubrir')+'<h4>¿Cubrió la línea?</h4>'+chips(vis,false);}
  h+=prox(p,pid,mk,pr,L,lado);
  var miss=vis.filter(function(r){return r.out==='No jugó';}).map(function(r){return 'S'+r.week;});if(miss.length)h+='<div class="jx-s">No jugó o sin estadísticas (no cuenta para el Hit Rate): '+miss.join(', ')+'</div>';
  h+='<details class="sec"><summary>Detalle semana a semana</summary><div class="scroll"><table><tr><th>Semana</th><th>Rival</th><th>Sede</th><th>Línea</th><th>Real</th><th>Real − línea</th><th>Resultado</th></tr>'+vis.map(function(r){return '<tr><td>'+r.week+'</td><td>'+H(r.opp||'')+'</td><td>'+(r.ha===1?'Local':(r.ha===0?'Visitante':''))+'</td><td>'+fmt(r.line)+'</td><td>'+(r.played?fmt(r.actual):'—')+'</td><td>'+(r.played&&r.line!=null?((r.actual-r.line>=0?'+':'')+(r.actual-r.line).toFixed(1)):'')+'</td><td>'+r.out+'</td></tr>';}).join('')+'</table></div></details>';
@@ -341,6 +343,7 @@ document.addEventListener('change',onSel);
 document.addEventListener('input',function(ev){if(ev.target&&ev.target.id==='jx-line'){onSel(ev);}});
 document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('button[data-jx]');if(!b||!b.closest('#jx'))return;
  var pid=$('jx-pl').value,mk=$('jx-mk').value,pr=(D.pr[pid]||{})[mk],k=b.dataset.jx,v=null;
+ if(k==='todos'){var r0=document.querySelector('input[name=jx-sede][value=""]');if(r0)r0.checked=true;render(false);return;}
  if(k==='modelo'&&pr&&pr[3]!=null){v=pr[3];st.src='modelo';}
  else if(k==='kalshi'&&pr&&pr[9]!=null){v=pr[9];st.src='propia';}
  else if(k==='prom'){var rr=frame(pid,$('jx-sea').value,mk).filter(function(r){return r.played;});var a=rr.length?rr.reduce(function(s,r){return s+r.actual;},0)/rr.length:0.5;v=Math.max(0.5,Math.round(a*2)/2);st.src='promedio';}
