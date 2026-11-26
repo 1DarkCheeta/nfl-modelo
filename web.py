@@ -7,7 +7,7 @@ mismas: escuchan eventos a nivel de documento, asi que funcionan igual aunque su
 Estructura (4 secciones, navegacion segmentada; tema claro por defecto y oscuro con boton)
   Picks / Valor         que apostar hoy, posibles valores, filtros, partidos de la semana (la siguiente aparte), resumen, graficas, tarjeta, metodologia
   Partidos              selector de partido; cada partido con 4 sub-pestanas: Apuestas / Puntos y combinadas / Props y TD / Matchup
-  Jugadores y Props     mariscales, movimientos, LINEA AC, equipo por equipo, Elo, touchdowns, Kalshi, props destacados, proyecciones
+  Jugadores y Props     LINEA AC, touchdowns, props destacados, cruce ofensiva vs defensa, ofensiva, defensiva
   Record / Backtest     resumen de calidad, mis apuestas, record, marcador, confianza, historial y la guia («Como leer este reporte»)
 
 Si algo falla al armar este diseno, reporte.py usa el diseno anterior (una sola pagina larga).
@@ -524,21 +524,19 @@ def armar(c: dict) -> str:
     t1 = (f'{_subnav(it1)}{EX.hoy_html(js_, c, _mercados, _cuando, _veredicto_chip, vchip, tip)}<span id="sem-resumen"></span>'
           f'<h2 class="tabsec" id="picks-tit">Posibles valores de toda la semana ({n_val})</h2>'
           f'<p class="leyenda">Ordenados de mayor a menor ventaja. Toca uno para ver el partido.</p>{_picks(js_, c, nm)}{_alertas(js_)}'
-          f'<details class="exp" id="resumen-det"><summary>Detalle del resumen y aviso importante</summary>{c["resumen"]}{c["importante"]}</details>'
+          f'<details class="exp" id="resumen-det"><summary>Detalle del resumen y aviso importante</summary>{c["resumen"]}{c["importante"].replace("la sección «Mariscales» te avisa de los cambios", "las alertas 🏈 de cada partido te avisan de los cambios")}</details>'
           f'<span id="sem-vistazo"></span>{resumen_partidos(js_, nm, c)}{graf}<span id="tarjeta-ancla"></span>{EX.tarjeta_html(js_, c, _mercados, nm)}{_metodologia(c)}')
     # ---- Partidos
     t2 = ('<h2 id="partidos" class="tabsec">Partido por partido</h2>'
           '<details class="exp"><summary>Qué hay en cada partido</summary><p class="leyenda">Elige un partido y mira, en sub-pestañas: las apuestas contra el mercado, '
           'los Más de / Menos de de puntos con tus propias líneas y las combinadas, los props y touchdowns de jugadores y el matchup.</p></details>'
           f'{como}{_selector(js_, c)}<div class="gpanels" id="pgrid">{"".join(heads)}</div>{pp.get("datos", "")}')
-    # ---- Jugadores y Props (incluye mariscales, movimientos y las proyecciones ofensiva vs defensa)
-    it3 = [("qb", "Mariscales", bool(c.get("sec_qb"))), ("movimientos", "Movimientos", bool(c.get("sec_mov"))), ("explorador", "LINEA AC", bool(c.get("sec_jug"))),
-           ("porequipo", "Equipo por equipo", bool(c.get("sec_eq"))), ("elo", "Elo", bool(c.get("sec_elo"))), ("td", "Touchdowns", bool(c.get("sec_td"))),
-           ("casas", "Kalshi", bool(c.get("sec_casas"))), ("props", "Props destacados", bool(c.get("sec_top"))),
-           ("proyecciones", "Cruce ofensiva vs defensa", bool(c.get("sec_proy"))), ("proy-of", "Ofensivas", bool(c.get("sec_proy"))), ("proy-de", "Defensas", bool(c.get("sec_proy")))]
-    hay_j = any(c.get(k) for k in ("sec_eq", "sec_elo", "sec_jug", "sec_td", "sec_casas", "sec_top", "sec_qb", "sec_mov", "sec_proy"))
-    t3 = (_subnav(it3) + c.get("sec_qb", "") + c.get("sec_mov", "") + c.get("sec_jug", "") + c.get("sec_eq", "") + c.get("sec_elo", "") + c.get("sec_td", "") +
-          c.get("sec_casas", "") + c.get("sec_top", "") + (c.get("sec_proy") or ""))
+    # ---- Jugadores y Props: solo LINEA AC, Touchdowns, Props destacados, Cruce ofensiva vs defensa, Ofensiva y Defensiva (en ese orden)
+    proy = re.sub(r'<nav class="subnav">.*?</nav>', "", c.get("sec_proy") or "", count=1, flags=re.S)   # el menu de esta seccion ya esta arriba
+    it3 = [("explorador", "LINEA AC", bool(c.get("sec_jug"))), ("td", "Touchdowns", bool(c.get("sec_td"))), ("props", "Props destacados", bool(c.get("sec_top"))),
+           ("proyecciones", "Cruce ofensiva vs defensa", bool(proy)), ("proy-of", "Ofensiva", bool(proy)), ("proy-de", "Defensiva", bool(proy))]
+    hay_j = any(c.get(k) for k in ("sec_jug", "sec_td", "sec_top", "sec_proy"))
+    t3 = _subnav(it3) + c.get("sec_jug", "") + c.get("sec_td", "") + c.get("sec_top", "") + proy
     if not hay_j:
         t3 = '<div class="box">Esta pestaña se llena cuando el reporte incluye jugadores y props (corre el programa completo).</div>'
     t3 += (c.get("js_frag") or {}).get("jugadores", "") + (c.get("js_frag") or {}).get("proyecciones", "")
