@@ -10,6 +10,7 @@
 Todo se arma aqui y web.py lo engancha. Los numeros (probabilidad, cuota, ventaja) vienen de predict/reporte tal cual.
 """
 from __future__ import annotations
+from barras import barra
 
 import html
 import json
@@ -77,11 +78,15 @@ def boton_registrar(d: dict, m: dict) -> str:
     return f'<button type="button" class="chip ma-reg" {attrs}>Registrar en Mis apuestas</button>'
 
 
+def _ct(m) -> str:
+    return "La cuota (" + fd(m["cuota"]) + ") exige"
+
+
 def hoy_html(js_, c, mercados, cuando, veredicto_chip, vchip, tip) -> str:
     L = _valores(js_, c, mercados)
     pie = ('<p class="leyenda">«Tamaño sugerido»: un cuarto de lo que sugiere el criterio de Kelly, con tope de 1 unidad; '
            '1 unidad = 1 % de tu banca.' + tip("tamano") + ' Es una guía para no apostar de más, no una garantía. '
-           'Lo que no aparece aquí (sin ventaja) está en «Los partidos de un vistazo».</p>')
+           'Lo que no aparece aquí (sin ventaja) está en «Los partidos de la semana».</p>')
     if not L:
         return ('<section class="hoy" id="hoy" aria-labelledby="hoy-t"><h2 id="hoy-t" class="tabsec">Qué apostar hoy</h2>'
                 '<div class="vacio"><span class="vacio-ic" aria-hidden="true">ⓘ</span><div><b>Hoy no hay elecciones con ventaja real.</b> '
@@ -93,14 +98,14 @@ def hoy_html(js_, c, mercados, cuando, veredicto_chip, vchip, tip) -> str:
         ko = d["ko"].isoformat() if d["ko"] is not None else ""
         filas.append(
             f'<article class="hoy-row box" data-ko="{ko}" data-gid="{_esc(d["id"])}" data-mk="{m["k"]}">'
-            f'<div class="hr-top"><span class="hr-mk">{_esc(m["t"])} · {_esc(d["away"])} @ {_esc(d["home"])}</span><span class="hr-when">{_esc(cuando(d["ko"]))}</span></div>'
-            f'<div class="hr-lado">{_esc(m["lab"])}</div>'
+            f'<div class="gc-top"><span class="hr-when when">{_esc(cuando(d["ko"]))}</span>{vchip("valor" if cl == "valor" else "aviso", tx)}</div>'
+            f'<div class="gc-mid"><div class="hr-mk pk-m">{_esc(m["t"])} · {_esc(d["away"])} @ {_esc(d["home"])}</div>'
+            f'<div class="hr-lado">{_esc(m["lab"])}</div></div>'
             f'<div class="hr-nums"><div><small>Cuota</small><b>{_esc(fd(m["cuota"]))}</b></div>'
             f'<div><small>Ventaja{tip("ventaja")}</small><b>{m["edge"] * 100:+.1f} pts</b></div>'
             f'<div><small>Tamaño sugerido{tip("tamano")}</small><b>{_esc(_u_txt(a["u"]))}</b></div></div>'
-            f'<p class="hr-det">Modelo <b>{m["p"] * 100:.0f}%</b> · la cuota ({_esc(fd(m["cuota"]))}) exige <b>{m["imp"] * 100:.0f}%</b></p>'
-            f'{vchip("valor" if cl == "valor" else "aviso", tx)}'
-            f'<div class="hr-btns"><button type="button" class="chip" data-go="{_esc(d["id"])}" data-tab="apuestas">Ver partido</button>{boton_registrar(d, m)}</div></article>')
+            f'{barra(m["p"] * 100, m["imp"] * 100, "Modelo", "Lado contrario", _ct(m), diff=m["edge"] * 100)}'
+            f'<div class="gc-foot"><div class="hr-btns"><button type="button" class="chip" data-go="{_esc(d["id"])}" data-tab="apuestas">Ver partido</button>{boton_registrar(d, m)}</div></div></article>')
     return ('<section class="hoy" id="hoy" aria-labelledby="hoy-t"><h2 id="hoy-t" class="tabsec">Qué apostar hoy</h2>'
             '<p class="hoy-sub" id="hoy-sub" aria-live="polite"></p>'
             f'<div id="hoy-lista">{"".join(filas)}</div>'
@@ -203,14 +208,15 @@ CSS_EXTRA = """
 .hr-nums b{font-size:var(--fs-20)}
 .hr-det{font-size:var(--fs-14);margin:var(--s2) 0}
 .hr-btns{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
-button.chip{min-height:var(--touch);padding:0 var(--s4);border-radius:var(--r-pill);background:var(--surface-3);border:1px solid var(--border);color:var(--text);font-weight:600;font-size:var(--fs-14);font-family:inherit;cursor:pointer}
+button.chip{min-height:var(--touch);padding:0 var(--s4);border-radius:var(--r-pill);background:var(--surface-3);border:1px solid var(--border-strong);color:var(--text);font-weight:600;font-size:var(--fs-14);font-family:inherit;cursor:pointer}
 button.chip:hover{border-color:var(--border-strong)}
 .nueva button.chip{margin-left:var(--s2)}
 @media(max-width:420px){.hr-nums{grid-template-columns:1fr 1fr 1fr}.hr-nums b{font-size:var(--fs-17)}}
-.tj-ctl{display:grid;gap:var(--s3);grid-template-columns:1fr;margin:var(--s3) 0}
+.tj-ctl{display:grid;gap:var(--s3);grid-template-columns:minmax(0,1fr);margin:var(--s3) 0}
 @media(min-width:760px){.tj-ctl{grid-template-columns:1fr 1fr}}
-.tj-ctl label,#ma-f label{display:grid;gap:var(--s1);font-size:var(--fs-14);color:var(--text-2)}
-.tj-ctl select,#ma-f select,#ma-f input[type=text],.ma-b0 input{min-height:var(--touch);font-size:16px;background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);padding:0 var(--s3);font-family:inherit}
+.tj-ctl label,#ma-f label{display:grid;gap:var(--s1);font-size:var(--fs-14);color:var(--text-2);min-width:0}
+.tj-ctl select,#ma-f select,#ma-f input[type=text]{width:100%;max-width:100%;min-width:0;text-overflow:ellipsis}
+.tj-ctl select,#ma-f select,#ma-f input[type=text],.ma-b0 input{min-height:var(--touch);font-size:16px;background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:0 var(--s3);font-family:inherit}
 #tj-cv{width:100%;max-width:420px;height:auto;display:block;margin:var(--s3) auto;border:1px solid var(--border);border-radius:var(--r-sm);background:#000}
 .tj-btns{display:flex;gap:var(--s2);flex-wrap:wrap;justify-content:center}
 .ma-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:var(--s2);margin:var(--s3) 0}
@@ -226,16 +232,16 @@ ul.ma-list{list-style:none;padding:0;margin:var(--s3) 0;display:grid;gap:var(--s
 li.ma-bet{padding:var(--s3) var(--s4)}
 .ma-bet .ma-l{font-weight:700;font-size:var(--fs-17)}.ma-bet small{color:var(--text-2);display:block}
 .ma-bet .ma-row{display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center;margin-top:var(--s2);font-size:var(--fs-14)}
-.ma-bet select{min-height:var(--touch);font-size:16px;background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);padding:0 var(--s2);font-family:inherit}
+.ma-bet select{min-height:var(--touch);font-size:16px;background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-family:inherit}
 .ma-chart{margin:var(--s3) 0}
-#ma-form{position:fixed;left:var(--s3);right:var(--s3);bottom:var(--s3);top:auto;z-index:90;max-width:520px;margin:0 auto;padding:var(--s4);box-shadow:0 8px 28px #000;max-height:92vh;overflow:auto}
+#ma-form{position:fixed;left:var(--s3);right:var(--s3);bottom:var(--s3);top:auto;z-index:90;max-width:520px;margin:0 auto;padding:var(--s4);box-shadow:var(--shadow-pop);max-height:92vh;overflow:auto}
 #ma-form form{display:grid;gap:var(--s3)}
 #ma-form[hidden],#ma-toast[hidden]{display:none}
 .ma-fb{display:flex;gap:var(--s2)}
-.ma-ok,.ma-no{min-height:var(--touch);padding:0 var(--s5);border-radius:var(--r-pill);font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--border)}
+.ma-ok,.ma-no{min-height:var(--touch);padding:0 var(--s5);border-radius:var(--r-pill);font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--border-strong)}
 .ma-ok{background:var(--accent);color:var(--on-accent);border:0}.ma-no{background:var(--surface-3);color:var(--text)}
 .ma-err{color:var(--contra);font-size:var(--fs-14);margin:0}
-#ma-toast{position:fixed;left:var(--s3);right:var(--s3);bottom:calc(72px + env(safe-area-inset-bottom));z-index:95;max-width:520px;margin:0 auto;padding:var(--s3) var(--s4);box-shadow:0 8px 28px #000;font-size:var(--fs-14)}
+#ma-toast{position:fixed;left:var(--s3);right:var(--s3);bottom:calc(16px + env(safe-area-inset-bottom));z-index:95;max-width:520px;margin:0 auto;padding:var(--s3) var(--s4);box-shadow:var(--shadow-pop);font-size:var(--fs-14)}
 @media(min-width:900px){#ma-toast{bottom:24px}}
 """
 
@@ -295,13 +301,13 @@ function curva(c,b0){var pts=[b0],cur=b0;c.forEach(function(b){var r=resultado(b
  var d=pts.map(function(v,i){return (i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);}).join(' ');
  var y0=Y(b0);
  return '<div class="chart ma-chart"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Curva de tu banca en unidades, de '+f2(pts[0])+' a '+f2(pts[pts.length-1])+'">'
-  +'<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y0.toFixed(1)+'" y2="'+y0.toFixed(1)+'" stroke="#8793A8" stroke-dasharray="5 4" stroke-width="1.5"/>'
-  +'<path d="'+d+'" fill="none" stroke="#7FB2FF" stroke-width="3" stroke-linejoin="round"/>'
-  +pts.map(function(v,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="3.5" fill="#7FB2FF"/>';}).join('')
-  +'<text class="ut" x="'+(pl-6)+'" y="'+(Y(mx)+4).toFixed(1)+'" text-anchor="end" fill="#CBD5E6" font-size="12">'+mx.toFixed(1)+'</text>'
-  +'<text class="ut" x="'+(pl-6)+'" y="'+(Y(mn)+4).toFixed(1)+'" text-anchor="end" fill="#CBD5E6" font-size="12">'+mn.toFixed(1)+'</text>'
-  +'<text class="ut" x="'+(W-pr)+'" y="'+(H-8)+'" text-anchor="end" fill="#CBD5E6" font-size="12">apuesta n.º</text>'
-  +'<text class="ut" x="'+pl+'" y="'+(H-8)+'" fill="#CBD5E6" font-size="12">inicio: '+f2(b0)+' u</text></svg></div>';}
+  +'<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y0.toFixed(1)+'" y2="'+y0.toFixed(1)+'" style="stroke:var(--text-2)" stroke-dasharray="5 4" stroke-width="1.5"/>'
+  +'<path d="'+d+'" fill="none" style="stroke:var(--accent)" stroke-width="3" stroke-linejoin="round"/>'
+  +pts.map(function(v,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="3.5" style="fill:var(--accent)"/>';}).join('')
+  +'<text class="ut" x="'+(pl-6)+'" y="'+(Y(mx)+4).toFixed(1)+'" text-anchor="end" style="fill:var(--text-2)" font-size="12">'+mx.toFixed(1)+'</text>'
+  +'<text class="ut" x="'+(pl-6)+'" y="'+(Y(mn)+4).toFixed(1)+'" text-anchor="end" style="fill:var(--text-2)" font-size="12">'+mn.toFixed(1)+'</text>'
+  +'<text class="ut" x="'+(W-pr)+'" y="'+(H-8)+'" text-anchor="end" style="fill:var(--text-2)" font-size="12">apuesta n.º</text>'
+  +'<text class="ut" x="'+pl+'" y="'+(H-8)+'" style="fill:var(--text-2)" font-size="12">inicio: '+f2(b0)+' u</text></svg></div>';}
 function render(){var h=$('#ma-host');if(!h)return;var D=cargar(),bets=D.bets,S=resumen(bets);
  var banca=D.b0+S.net,kp=function(t,v,cls){return '<div'+(cls?' class="'+cls+'"':'')+'><small>'+t+'</small><b>'+v+'</b></div>';};
  var k=kp('Apuestas',S.n+(S.pend?' ('+S.pend+' en juego)':''))+kp('Acierto',S.acierto===null?'—':(S.acierto*100).toFixed(0)+' %')

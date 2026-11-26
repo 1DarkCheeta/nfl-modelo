@@ -1,55 +1,93 @@
 /* ==========================================================================
    tokens.css — ÚNICO archivo de diseño base del reporte NFL.
-   Un solo tema: negro con bordes azul platinado (decisión del usuario, 18-nov-2026).
-   Nada de colores sueltos en otros archivos: todo sale de estas variables.
-   Contraste verificado (WCAG): texto >= 4.5:1, bordes/íconos >= 3:1 (contraste.json).
+   Dos temas: CLARO (por defecto, estilo app iOS limpia) y OSCURO (botón en la cabecera;
+   se recuerda en el navegador). Todo lo demás del sitio sale de estas variables.
+   Contraste verificado (WCAG AA) en los dos temas: texto >= 4.5:1; bordes de controles,
+   íconos y barras >= 3:1 (ver /tmp/ui/pal.py y a11y3.py). Los bordes de tarjeta (1 px) son decorativos.
    ========================================================================== */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   /* Fondos */
-  --bg:        #000000;   /* fondo de página: negro */
-  --surface:   #070A0F;   /* cajas */
-  --surface-2: #0E131B;   /* cajas elevadas / filas alternas */
-  --surface-3: #151C27;   /* campos, hover */
+  --bg:        #F5F6F8;   /* fondo de página */
+  --surface:   #FFFFFF;   /* tarjetas */
+  --surface-2: #F1F3F6;   /* cajas elevadas / filas alternas */
+  --surface-3: #E7EAEF;   /* campos, hover */
 
-  /* Bordes azul platinado */
-  --border:        #8AA0BF;  /* borde de caja */
-  --border-strong: #C3D1E6;  /* borde resaltado / foco / activo */
-  --border-subtle: #2B3647;  /* separadores internos (no son el borde de caja) */
-  /* Brillo metálico del borde: la parte MÁS oscura (#5F7799) sigue dando >= 3:1 sobre negro */
-  --metal: linear-gradient(135deg, #D5E0F0 0%, #8AA0BF 38%, #5F7799 62%, #B9C8DE 100%);
+  /* Bordes finos (1 px) */
+  --border:        #D9DDE4;  /* borde de tarjeta (decorativo) */
+  --border-strong: #7C8696;  /* borde de controles, foco y activo (>= 3:1) */
+  --border-subtle: #E6E9EE;  /* separadores internos */
+  --metal: linear-gradient(var(--border), var(--border));   /* el código antiguo pinta bordes con este degradado: ahora es un trazo liso */
 
   /* Texto */
-  --text:   #F3F6FB;
-  --text-2: #A9B5C7;
+  --text:   #0F141B;
+  --text-2: #4F5B6D;
 
-  /* Acento (pestaña activa, botón principal, barra del modelo) */
-  --accent:    #C3D1E6;
-  --on-accent: #05080D;
+  /* Acento (pestaña activa, botón principal) */
+  --accent:    #0A58CA;
+  --on-accent: #FFFFFF;
 
   /* Semántica FIJA en todo el sitio (siempre con ícono o texto, nunca solo color) */
-  --valor:      #3DDC84;  --valor-bg:   #0B2A1A;  /* ✔ posible valor */
-  --neutral:    #A3ADBB;  --neutral-bg: #161B23;  /* — sin ventaja */
-  --aviso:      #FFB547;  --aviso-bg:   #2D2006;  /* ⚠ precaución / histórico no rentable */
-  --contra:     #FF7A7A;  --contra-bg:  #331012;  /* ✖ en contra */
-  --info:       #66B3FF;  --info-bg:    #0C2238;  /* ⓘ información */
+  --valor:      #0F7A3C;  --valor-bg:   #E6F5EC;  /* ✔ posible valor */
+  --neutral:    #546072;  --neutral-bg: #EDF0F4;  /* — sin ventaja */
+  --aviso:      #8A4F00;  --aviso-bg:   #FFF3DA;  /* ⚠ precaución / histórico no rentable */
+  --contra:     #B3261E;  --contra-bg:  #FCE9E7;  /* ✖ en contra */
+  --info:       #0A5AA8;  --info-bg:    #E6F1FB;  /* ⓘ información */
 
-  --shadow: 0 1px 0 rgba(255,255,255,.04), 0 6px 18px rgba(0,0,0,.55);
+  /* Barras de comparación: verde = lado positivo (modelo/favorito/acierto), rojo = contraparte */
+  --bar-pos: #1F9D55;
+  --bar-neg: #D9534F;
+  --cut:     #0F141B;     /* línea vertical de corte (probabilidad implícita del mercado o umbral) */
+
+  --shadow:     0 1px 2px rgba(16,24,40,.04);
+  --shadow-pop: 0 10px 30px rgba(16,24,40,.18);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg:        #0B0D11;
+  --surface:   #13171D;
+  --surface-2: #191E26;
+  --surface-3: #212835;
+
+  --border:        #2B3342;
+  --border-strong: #7F8CA3;
+  --border-subtle: #232A36;
+
+  --text:   #F2F5FA;
+  --text-2: #A9B4C5;
+
+  --accent:    #7FB2FF;
+  --on-accent: #06101F;
+
+  --valor:      #3DDC84;  --valor-bg:   #0E2A1B;
+  --neutral:    #A3ADBB;  --neutral-bg: #1A2029;
+  --aviso:      #FFB547;  --aviso-bg:   #2D2108;
+  --contra:     #FF7A7A;  --contra-bg:  #341214;
+  --info:       #66B3FF;  --info-bg:    #0D2338;
+
+  --bar-pos: #34C26B;
+  --bar-neg: #F0605D;
+  --cut:     #F2F5FA;
+
+  --shadow:     0 1px 2px rgba(0,0,0,.4);
+  --shadow-pop: 0 10px 30px rgba(0,0,0,.6);
 }
 
 :root {
   /* Tipografía: una sola familia sans (Inter si está instalada; si no, la del sistema; sin descargas) */
-  --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --fs-12: 12px;  --fs-14: 14px;  --fs-15: 15px;  --fs-17: 17px;  --fs-20: 20px;  --fs-24: 24px;  --fs-32: 32px;
   --lh: 1.45;
 
-  /* Espaciado: escala de 4 px */
+  /* Espaciado: escala de 4 px (más aire que antes) */
   --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;  --s5: 20px;  --s6: 24px;  --s8: 32px;
 
   /* Radios y objetivos táctiles */
-  --r: 12px;  --r-sm: 10px;  --r-pill: 999px;
+  --r: 14px;  --r-sm: 10px;  --r-pill: 999px;
   --touch: 44px;
-  --borde-ancho: 1.5px;
+  --borde-ancho: 1px;
 }

@@ -21,9 +21,11 @@ REPORTES = ROOT / "reportes"
 REPORTES.mkdir(exist_ok=True)
 
 # Colores (paleta categorica validada: azul / naranja; gris para el mercado)
-from ui_css import COL                      # los colores de las graficas salen de los mismos tokens que la pagina
-SURF, INK, INK2, GRID = COL["surface"], COL["text"], COL["text-2"], COL["border-subtle"]
-C_B, C_A, C_MUTED = COL["info"], COL["aviso"], "#5F7799"
+from ui_css import COL_L, COL_D             # los colores de las graficas salen de los mismos tokens que la pagina (un juego por tema)
+_PAL = {"l": (COL_L["surface"], COL_L["text"], COL_L["text-2"], COL_L["border-subtle"], COL_L["info"], COL_L["aviso"], "#5F7799"),
+        "d": (COL_D["surface"], COL_D["text"], COL_D["text-2"], COL_D["border-subtle"], COL_D["info"], COL_D["aviso"], "#7F8CA3")}
+SURF, INK, INK2, GRID, C_B, C_A, C_MUTED = _PAL["l"]      # el valor de estas constantes cambia dentro de img_dual() (tema claro / oscuro)
+_NOMS = ("SURF", "INK", "INK2", "GRID", "C_B", "C_A", "C_MUTED")
 
 TEAMS = {"ARI": "Arizona Cardinals", "ATL": "Atlanta Falcons", "BAL": "Baltimore Ravens", "BUF": "Buffalo Bills",
          "CAR": "Carolina Panthers", "CHI": "Chicago Bears", "CIN": "Cincinnati Bengals", "CLE": "Cleveland Browns",
@@ -51,6 +53,27 @@ def _b64(fig) -> str:
     fig.savefig(buf, format="png", dpi=110, bbox_inches="tight", transparent=True)
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode()
+
+
+def img_dual(alt: str, fn, *args, **kw) -> str:
+    """La misma gráfica dibujada con la paleta clara y con la oscura: <img class="th-l"> y <img class="th-d"> (el CSS muestra la del tema activo)."""
+    import sys
+    mods = [m for n, m in sys.modules.items() if n in ("reporte", "reporte_extra", "reporte_mercado", "reporte_apuestas") and m is not None]
+    out = []
+    for k in ("l", "d"):
+        ant = [(m, {n: getattr(m, n) for n in _NOMS if hasattr(m, n)}) for m in mods]
+        for m in mods:
+            for n, v in zip(_NOMS, _PAL[k]):
+                if hasattr(m, n):
+                    setattr(m, n, v)
+        try:
+            b = fn(*args, **kw)
+        finally:
+            for m, d in ant:
+                for n, v in d.items():
+                    setattr(m, n, v)
+        out.append(f'<img class="th-{k}" alt="{alt}" src="data:image/png;base64,{b}">' if b else "")
+    return "".join(out)
 
 
 def _style(ax, grid="x"):
@@ -370,8 +393,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
                    '<p>Esta semana el modelo no ve ninguna diferencia lo bastante grande frente a las cuotas. '
                    'Es lo más habitual: el mercado de la NFL es muy eficiente. «Sin ventaja» significa que no conviene apostar según este modelo.</p></div>')
 
-    figs = {"mar": fig_margenes(res), "prob": fig_probabilidad(res), "edge": fig_ventajas(res, me)}
-    cal = fig_calibracion(oos, cur)
+    figs = {"mar": img_dual("Márgenes", fig_margenes, res), "prob": img_dual("Probabilidad de ganar", fig_probabilidad, res), "edge": img_dual("Ventajas", fig_ventajas, res, me)}
+    cal = img_dual("Calibración", fig_calibracion, oos, cur)
     rm = rmse_tabla(oos, cur)
     cred = ""
     if cal and rm:
@@ -380,8 +403,8 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
 <h2>¿Qué tanto confiar en estos porcentajes?</h2>
 <p class="explain">Probé el modelo B en {nrm} partidos de 2015 a {cur - 1}, prediciendo cada temporada solo con datos de años anteriores (sin trampa).</p>
 <div class="grid2">
- <div><h4>Calibración</h4><p class="explain">Si el modelo dice «70%», ¿gana de verdad ~70% de las veces? Cuanto más cerca de la línea gris, más honestos son sus porcentajes.</p><div class="chart"><img alt="Calibración" src="data:image/png;base64,{cal}"></div></div>
- <div><h4>Error al predecir el margen</h4><p class="explain">Error típico en puntos. El mercado ({vals['Mercado (línea)']:.1f}) todavía es mejor que mis ratings solos (A: {vals['Modelo A']:.1f}); B ({vals['Modelo B']:.1f}) queda casi igual que el mercado: <b>no lo supera</b>.</p><div class="chart"><img alt="Error" src="data:image/png;base64,{fig_rmse(vals)}"></div></div>
+ <div><h4>Calibración</h4><p class="explain">Si el modelo dice «70%», ¿gana de verdad ~70% de las veces? Cuanto más cerca de la línea gris, más honestos son sus porcentajes.</p><div class="chart">{cal}</div></div>
+ <div><h4>Error al predecir el margen</h4><p class="explain">Error típico en puntos. El mercado ({vals['Mercado (línea)']:.1f}) todavía es mejor que mis ratings solos (A: {vals['Modelo A']:.1f}); B ({vals['Modelo B']:.1f}) queda casi igual que el mercado: <b>no lo supera</b>.</p><div class="chart">{img_dual("Error", fig_rmse, vals)}</div></div>
 </div>"""
 
     hist = historial(games)
@@ -487,13 +510,13 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         generado = datetime.now()
         graficas = (f'''<h3>Margen esperado de cada partido</h3>
 <p class="explain">Cada fila es un partido. El rombo gris es lo que dice el mercado; el círculo azul (B) casi siempre cae pegado a él; el círculo naranja vacío (A) es la opinión independiente. Si A está lejos del rombo, A y el mercado discrepan.</p>
-<div class="chart"><img alt="Márgenes" src="data:image/png;base64,{figs['mar']}"></div>
+<div class="chart">{figs['mar']}</div>
 <h3>¿Quién gana? Modelo vs mercado</h3>
 <p class="explain">Probabilidad de que gane el equipo local. Si el punto azul y el rombo están muy juntos, el modelo coincide con el mercado.</p>
-<div class="chart"><img alt="Probabilidad de ganar" src="data:image/png;base64,{figs['prob']}"></div>
+<div class="chart">{figs['prob']}</div>
 <h3>¿Hay ventaja en alguna apuesta?</h3>
 <p class="explain">Cada barra es el mejor lado de ese partido en cada tipo de apuesta. <b>Hacia la izquierda (negativa) = la cuota paga menos de lo que vale: no conviene.</b> Solo las barras azules, que pasan la línea naranja de umbral, se consideran «posible valor». Si todas son grises, esta semana no hay nada.</p>
-<div class="chart"><img alt="Ventajas" src="data:image/png;base64,{figs['edge']}"></div>''')
+<div class="chart">{figs['edge']}</div>''')
         cards_ap = {x.game_id: _card(x, me, (QB.nota_juego(qb_an, x.game_id) if qb_an else "") + (f'<div class="qbnota"><b>Movimientos:</b> {html.escape(mov_juego[x.game_id])}</div>' if x.game_id in mov_juego else "")) for _, x in res.iterrows()}
         importante = ('<div class="box"><b>Importante:</b> el modelo A no conoce lesiones ni mariscales; el B parte de la línea del mercado, que sí los conoce '
                       '(los avisos de mariscal, clima y bajas están en cada partido). No es asesoría financiera: apuesta solo lo que puedas perder y donde sea legal.</div>')
@@ -526,15 +549,15 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
 
 <h2 id="equipos">1. ¿Qué margen espera cada uno?</h2>
 <p class="explain">Cada fila es un partido. El rombo gris es lo que dice el mercado; el círculo azul (B) casi siempre cae pegado a él; el círculo naranja vacío (A) es la opinión independiente. Si A está lejos del rombo, A y el mercado discrepan.</p>
-<div class="chart"><img alt="Márgenes" src="data:image/png;base64,{figs['mar']}"></div>
+<div class="chart">{figs['mar']}</div>
 
 <h2>2. ¿Quién gana? Modelo vs mercado</h2>
 <p class="explain">Probabilidad de que gane el equipo local. Si el punto azul y el rombo están muy juntos, el modelo coincide con el mercado.</p>
-<div class="chart"><img alt="Probabilidad de ganar" src="data:image/png;base64,{figs['prob']}"></div>
+<div class="chart">{figs['prob']}</div>
 
 <h2>3. ¿Hay ventaja en alguna apuesta?</h2>
 <p class="explain">Cada barra es el mejor lado de ese partido en cada tipo de apuesta. <b>Hacia la izquierda (negativa) = la cuota paga menos de lo que vale: no conviene.</b> Solo las barras azules, que pasan la línea naranja de umbral, se consideran «posible valor». Si todas son grises, esta semana no hay nada.</p>
-<div class="chart"><img alt="Ventajas" src="data:image/png;base64,{figs['edge']}"></div>
+<div class="chart">{figs['edge']}</div>
 
 {sec_eq}
 {sec_pt}
@@ -577,7 +600,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         CSS_X, JS_X = CSS_X + PY.CSS, JS_X + ("" if usa_web else PY.JS)
     if usa_web:
         body, CSS_X, JS_X = body_web, CSS_X + WEB.CSS, JS_X + WEB.JS
-    doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
+    doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><script>try{{if(localStorage.getItem("nflmodelo.tema")==="dark")document.documentElement.setAttribute("data-theme","dark")}}catch(e){{}}</script><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
     ruta = ruta or REPORTES / f"reporte_{cur}_semana{wk:02d}.html"
     ruta.write_text(doc, encoding="utf-8")
     return ruta

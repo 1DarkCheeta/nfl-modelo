@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 import apuestas as A
-from reporte import C_A, C_B, C_MUTED, INK2, _b64, _style
+from reporte import C_A, C_B, C_MUTED, INK2, _b64, _style, img_dual
 from reporte_mercado import CSS, NOMBRES
 
 TIPOS = {"prop": "Jugador", "ml": "Ganador", "spread": "Handicap", "total": "Total"}
@@ -63,7 +63,7 @@ def construir(d: pd.DataFrame, ruta: Path) -> Path:
         if "clv_prob_medio" in r:
             k.append(("CLV medio", f"{r['clv_prob_medio']:+.1f} pts de prob. ({_pct(r['clv_prob_pos'], 0)} de las veces positivo)"))
         kpis = '<div class="card"><table>' + "".join(f"<tr><td>{a}</td><td><b>{b}</b></td></tr>" for a, b in k) + "</table></div>"
-        curva = f'<h2>Ganancia acumulada</h2><img alt="Ganancia acumulada" src="data:image/png;base64,{fig_curva(d)}">'
+        curva = f'<h2>Ganancia acumulada</h2>{img_dual("Ganancia acumulada", fig_curva, d)}'
     cal = ""
     if r.get("n_prob", 0) >= 5:
         cal = (f'<div class="card"><b>¿Acertó el modelo?</b> En {r["n_prob"]} apuestas con probabilidad del modelo registrada: el modelo decía en promedio '

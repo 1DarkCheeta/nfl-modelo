@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from odds_fmt import fd
-from reporte import C_A, C_B, C_MUTED, GRID, INK, INK2, SURF, _b64, _style, nm
+from reporte import C_A, C_B, C_MUTED, GRID, INK, INK2, SURF, _b64, _style, nm, img_dual
 
 FUENTE = {"kalshi": "Kalshi", "draftkings": "DraftKings"}
 ESTADO = {"Questionable": "Cuestionable", "Doubtful": "Dudoso", "Out": "Fuera"}
@@ -551,7 +551,7 @@ def top_html(top: pd.DataFrame, auto=None) -> str:
                     f'<td>{x.evid_p * 100:.0f}% <small>(n={x.evid_n}; sin ajuste {x.evid_base * 100:.0f}%)</small></td>'
                     f'<td class="mn">{html.escape(x.razon)}</td>'
                     f'<td>{_inputs(x.line_n, (auto or {}).get((x.player_id, x.market)))}</td><td class="res">escribe la línea →</td></tr>')
-    return (f'<div class="chart"><img alt="Props destacados" src="data:image/png;base64,{fig_top(top)}"></div>'
+    return (f'<div class="chart">{img_dual("Props destacados", fig_top, top)}</div>'
             f'<div class="scroll"><table class="pt"><tr><th>Jugador</th><th>Mercado</th><th>Línea normal → proyección</th><th>Lado</th>'
             f'<th>Respaldo histórico del lado</th><th>Por qué</th><th>Tu línea y cuotas</th><th>Resultado</th></tr>{"".join(rows)}</table></div>')
 

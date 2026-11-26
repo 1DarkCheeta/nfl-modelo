@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from reporte import C_A, C_B, C_MUTED, GRID, INK, INK2, SURF, _b64, _style
+from reporte import C_A, C_B, C_MUTED, GRID, INK, INK2, SURF, _b64, _style, img_dual
 
 NOMBRES = {"pass_yds": "Yardas por pase", "pass_cmp": "Pases completos", "pass_td": "TD de pase", "pass_int": "Intercepciones",
            "rush_yds": "Yardas por tierra", "rush_att": "Acarreos", "rec_yds": "Yardas de recepción", "rec": "Recepciones",
@@ -115,12 +115,12 @@ def construir(res: dict, ruta: Path, fuente: str = "") -> Path:
 
 <h2>1. Error por tipo de apuesta</h2>
 <p class="explain">Brier = error medio de las probabilidades (0 = perfecto; 0.25 = tirar una moneda). Menor es mejor. «Significativa» dice si la diferencia es mayor que el ruido (intervalo al 90 %, remuestreando partidos).</p>
-<div class="card"><div class="grid2"><div><img alt="Error por mercado" src="data:image/png;base64,{fig_brier(res)}"></div>
+<div class="card"><div class="grid2"><div>{img_dual("Error por mercado", fig_brier, res)}</div>
 <div><table><tr><th>Mercado</th><th>n</th><th>Mercado</th><th>Modelo</th><th>Mezcla 50/50</th><th>Dif.</th><th>Signif.</th></tr>{filas}</table></div></div></div>
 
 <h2>2. ¿Qué tan honestas son las probabilidades?</h2>
 <p class="explain">Si dicen «70 %», ¿pasa ~70 % de las veces? Cuanto más cerca de la línea punteada, mejor.</p>
-<div class="card"><img alt="Calibración" src="data:image/png;base64,{fig_calibracion(res)}"></div>
+<div class="card">{img_dual("Calibración", fig_calibracion, res)}</div>
 
 <h2>3. ¿Cuánto pesa cada uno?</h2>
 <div class="card"><p>Una regresión del resultado sobre ambos da un peso de <b>{pesos['mercado']:.2f}</b> al mercado y <b>{pesos['modelo']:.2f}</b> al modelo (en escala logit). Un peso del modelo cercano a cero significa que, una vez conocido el precio, el modelo casi no agrega información.</p></div>
