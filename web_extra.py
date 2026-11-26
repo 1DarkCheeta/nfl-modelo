@@ -100,11 +100,11 @@ def hoy_html(js_, c, mercados, cuando, veredicto_chip, vchip, tip) -> str:
             f'<article class="hoy-row box" data-ko="{ko}" data-gid="{_esc(d["id"])}" data-mk="{m["k"]}">'
             f'<div class="gc-top"><span class="hr-when when">{_esc(cuando(d["ko"]))}</span>{vchip("valor" if cl == "valor" else "aviso", tx)}</div>'
             f'<div class="gc-mid"><div class="hr-mk pk-m">{_esc(m["t"])} · {_esc(d["away"])} @ {_esc(d["home"])}</div>'
-            f'<div class="hr-lado">{_esc(m["lab"])}</div></div>'
+            f'<div class="hr-lado">{_esc(m["rot"])}</div></div>'
             f'<div class="hr-nums"><div><small>Cuota</small><b>{_esc(fd(m["cuota"]))}</b></div>'
             f'<div><small>Ventaja{tip("ventaja")}</small><b>{m["edge"] * 100:+.1f} pts</b></div>'
             f'<div><small>Tamaño sugerido{tip("tamano")}</small><b>{_esc(_u_txt(a["u"]))}</b></div></div>'
-            f'{barra(m["p"] * 100, m["imp"] * 100, "Modelo", "Lado contrario", _ct(m), diff=m["edge"] * 100)}'
+            f'{barra(m["p"] * 100, m["imp"] * 100, m["pos"], m["neg"], _ct(m), diff=m["edge"] * 100)}'
             f'<div class="gc-foot"><div class="hr-btns"><button type="button" class="chip" data-go="{_esc(d["id"])}" data-tab="apuestas">Ver partido</button>{boton_registrar(d, m)}</div></div></article>')
     return ('<section class="hoy" id="hoy" aria-labelledby="hoy-t"><h2 id="hoy-t" class="tabsec">Qué apostar hoy</h2>'
             '<p class="hoy-sub" id="hoy-sub" aria-live="polite"></p>'
@@ -156,7 +156,7 @@ def tarjeta_html(js_, c, mercados, nm) -> str:
         if pl != pl:
             continue
         home = pl >= 0.5
-        vals = [{"t": m["t"], "lab": m["lab"], "cuota": fd(m["cuota"]), "edge": round(m["edge"] * 100, 1),
+        vals = [{"t": m["t"], "lab": m["rot_c"], "cuota": fd(m["cuota"]), "edge": round(m["edge"] * 100, 1),
                  "u": tamano_u(float(m["p"]), float(a_dec(m["cuota"])))} for m in mercados(x) if m["edge"] >= me]
         games.append({"a": d["away"], "h": d["home"], "eq": d["home"] if home else d["away"], "p": round((pl if home else 1 - pl) * 100),
                       "vals": vals})

@@ -177,8 +177,22 @@ def _mercados(x) -> list[dict]:
             lab = f"{lado.replace(' ML', '')} gana"
         else:                                   # en spread y total el lado ya trae su linea («MIN +3», «OVER 46.5»)
             lab = lt(lado)
-        out.append({"k": k, "t": t, "lado": lado, "lab": lab, "p": float(x[f"{k}_p"]), "imp": float(x[f"{k}_imp"]),
-                    "cuota": float(x[f"{k}_cuota"]), "edge": float(x[f"{k}_edge"])})
+        p = float(x[f"{k}_p"])
+        # En el ganador (moneyline) el lado con «ventaja» puede ser el NO favorito: la apuesta es «PIT gana» aunque el modelo favorezca a DEN.
+        # lab (la apuesta tal cual) no cambia; rot es el rotulo de lectura y pos/neg nombran a los equipos en la barra.
+        under = (k == "ml" and p < 0.5)
+        pl_ = float(x.p_gana_local)
+        fav = h if pl_ >= 0.5 else x.away_team
+        pfav = pl_ if pl_ >= 0.5 else 1 - pl_
+        if k == "ml":
+            eq_ = lado.replace(" ML", "")
+            pos, neg = f"Modelo: {eq_}", (x.away_team if eq_ == h else h)
+        else:
+            pos, neg = "Modelo", "Lado contrario"
+        out.append({"k": k, "t": t, "lado": lado, "lab": lab, "p": p, "imp": float(x[f"{k}_imp"]),
+                    "cuota": float(x[f"{k}_cuota"]), "edge": float(x[f"{k}_edge"]), "under": under, "fav": fav, "pfav": pfav,
+                    "rot": lab + (" — no es el favorito" if under else ""), "rot_c": lab + (" (no favorito)" if under else ""),
+                    "pos": pos, "neg": neg})
     return out
 
 
@@ -268,12 +282,12 @@ def _picks(js_: list[dict], c: dict, nm) -> str:
         h, a = d["home"], d["away"]
         cards.append(
             f'<article class="pick" data-go="{_esc(d["id"])}" data-tab="apuestas" data-teams="{_esc(a)} {_esc(h)}" data-mk="{m["k"]}" tabindex="0" role="button" '
-            f'aria-label="{_esc(m["t"])} {_esc(m["lab"])}, ventaja {e * 100:+.1f} puntos. Ver partido">'
+            f'aria-label="{_esc(m["t"])} {_esc(m["rot"])}, ventaja {e * 100:+.1f} puntos. Ver partido">'
             f'<div class="gc-top"><span class="when">{_esc(_cuando(d["ko"]))}</span>{vchip("valor" if cl == "valor" else "aviso", tx)}</div>'
-            f'<div class="gc-mid"><div class="pk-m">{_esc(m["t"])} · {_esc(a)} @ {_esc(h)}</div><div class="pk-lado">{_esc(m["lab"])}</div>'
+            f'<div class="gc-mid"><div class="pk-m">{_esc(m["t"])} · {_esc(a)} @ {_esc(h)}</div><div class="pk-lado">{_esc(m["rot"])}</div>'
             f'<div class="pk-edge {"v" if cl == "valor" else "a"}"><span class="num">{e * 100:+.1f}</span> <span class="pk-u">pts de ventaja</span></div>'
             f'<div class="pk-det">Cuota <b>{fd(m["cuota"])}</b></div></div>'
-            f'{barra(m["p"] * 100, m["imp"] * 100, "Modelo", "Lado contrario", _ct(m), diff=e * 100)}'
+            f'{barra(m["p"] * 100, m["imp"] * 100, m["pos"], m["neg"], _ct(m), diff=e * 100)}'
             f'<div class="gc-foot"><span class="more">Ver partido →</span></div></article>')
     return f'<div class="carousel" id="picks" role="list" aria-label="Posibles valores ordenados por ventaja">{"".join(cards)}</div>'
 
@@ -346,7 +360,7 @@ def _una_frase(d: dict, c: dict) -> str:
     if g is not None:
         s += f", marcador esperado {a} {g['a']:.0f} – {g['h']:.0f} {h}"
     mks = [m for m in _mercados(x) if m["edge"] >= c["me"]]
-    s += ". " + (("Posible valor: " + "; ".join(f"{m['lab']} ({m['edge'] * 100:+.1f} pts)" for m in mks) + ".") if mks else "Sin ventaja contra el mercado.")
+    s += ". " + (("Posible valor: " + "; ".join(f"{m['rot']} ({m['edge'] * 100:+.1f} pts)" for m in mks) + ".") if mks else "Sin ventaja contra el mercado.")
     return s
 
 
@@ -398,18 +412,21 @@ def _veredicto_html(d: dict, c: dict) -> str:
             cl, tx, lin = _veredicto_chip(m["k"], hv)
             out.append(
                 f'<section class="verdict box" aria-label="Veredicto {_esc(m["t"])}">{vchip("valor" if cl == "valor" else "aviso", tx)}'
-                f'<h3>Posible valor: {_esc(m["lab"])} <span class="pk-g">({_esc(m["t"])})</span></h3>'
-                f'{barra(m["p"] * 100, m["imp"] * 100, "Modelo", "Lado contrario", _ct(m), diff=m["edge"] * 100)}'
+                f'<h3>Posible valor: {_esc(m["rot"])} <span class="pk-g">({_esc(m["t"])})</span></h3>'
+                f'{barra(m["p"] * 100, m["imp"] * 100, m["pos"], m["neg"], _ct(m), diff=m["edge"] * 100)}'
                 f'<div class="facts mini3"><div class="fact"><small>Modelo{tip("modelo")}</small><b>{m["p"] * 100:.0f}%</b></div>'
                 f'<div class="fact"><small>Cuota ({fd(m["cuota"])}) exige{tip("implicita")}</small><b>{m["imp"] * 100:.0f}%</b></div>'
                 f'<div class="fact edge"><small>Ventaja{tip("ventaja")}</small><b>{m["edge"] * 100:+.1f} pts</b></div></div>'
+                + (f'<p class="explain">Ojo: esto no es el pronóstico del partido. El modelo favorece a {_esc(m["fav"])} ({m["pfav"] * 100:.0f}%); '
+                   f'aquí la apuesta es a {_esc(m["lado"].replace(" ML", ""))}, que tiene {m["p"] * 100:.0f}% según el modelo contra {m["imp"] * 100:.0f}% que exige la cuota. '
+                   f'El valor está en lo que paga, no en que el modelo lo espere ganador.</p>' if m["under"] else "")
                 + (f'<p class="hist">{_esc(lin)}</p>' if lin else "") + f'<p>{EX.boton_registrar(d, m)}</p></section>')
     else:
         m = max(ms, key=lambda t: t["edge"]) if ms else None
         if m:
             out.append(
                 f'<section class="verdict box" aria-label="Veredicto">{vchip("neutral", "— Sin ventaja contra el mercado")}'
-                f'<h3>Sin ventaja en este partido</h3>{barra(m["p"] * 100, m["imp"] * 100, "Modelo", "Lado contrario", _ct(m), diff=m["edge"] * 100)}<p class="explain">El mejor lado es {_esc(m["lab"])} ({_esc(m["t"])}): el modelo le da {m["p"] * 100:.0f}% y la cuota '
+                f'<h3>Sin ventaja en este partido</h3>{barra(m["p"] * 100, m["imp"] * 100, m["pos"], m["neg"], _ct(m), diff=m["edge"] * 100)}<p class="explain">El mejor lado es {_esc(m["rot"])} ({_esc(m["t"])}): el modelo le da {m["p"] * 100:.0f}% y la cuota '
                 f'({fd(m["cuota"])}) exige {m["imp"] * 100:.0f}%, una ventaja de {m["edge"] * 100:+.1f} pts, menos que el umbral de {me * 100:.0f} pts.{tip("ventaja")}</p></section>')
     return "".join(out)
 
