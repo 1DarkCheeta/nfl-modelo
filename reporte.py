@@ -23,7 +23,7 @@ REPORTES.mkdir(exist_ok=True)
 # Colores (paleta categorica validada: azul / naranja; gris para el mercado)
 from ui_css import COL_L, COL_D             # los colores de las graficas salen de los mismos tokens que la pagina (un juego por tema)
 _PAL = {"l": (COL_L["surface"], COL_L["text"], COL_L["text-2"], COL_L["border-subtle"], COL_L["info"], COL_L["aviso"], "#5F7799"),
-        "d": (COL_D["surface"], COL_D["text"], COL_D["text-2"], COL_D["border-subtle"], COL_D["info"], COL_D["aviso"], "#7F8CA3")}
+        "d": (COL_D["surface"], COL_D["text"], COL_D["text-2"], COL_D["border-subtle"], COL_D["info"], COL_D["aviso"], "#8AA0BF")}
 SURF, INK, INK2, GRID, C_B, C_A, C_MUTED = _PAL["l"]      # el valor de estas constantes cambia dentro de img_dual() (tema claro / oscuro)
 _NOMS = ("SURF", "INK", "INK2", "GRID", "C_B", "C_A", "C_MUTED")
 

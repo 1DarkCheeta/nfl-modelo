@@ -6,32 +6,35 @@
    íconos y barras >= 3:1 (ver /tmp/ui/pal.py y a11y3.py). Los bordes de tarjeta (1 px) son decorativos.
    ========================================================================== */
 
+/* PALETA LOS PICKETONES: negro + azul platinado (#C3D1E6 / #8AA0BF / #5F7799).
+   Es la paleta original del sitio: el tema OSCURO la conserva tal cual; el CLARO usa la misma familia
+   (azul platinado sobre blanco azulado) y el mismo trazo metálico en los bordes. */
 :root {
   color-scheme: light;
 
   /* Fondos */
-  --bg:        #F5F6F8;   /* fondo de página */
+  --bg:        #EEF2F8;   /* fondo de página: blanco azulado */
   --surface:   #FFFFFF;   /* tarjetas */
-  --surface-2: #F1F3F6;   /* cajas elevadas / filas alternas */
-  --surface-3: #E7EAEF;   /* campos, hover */
+  --surface-2: #F4F7FB;   /* cajas elevadas / filas alternas */
+  --surface-3: #E3E9F2;   /* campos, hover */
 
-  /* Bordes finos (1 px) */
-  --border:        #D9DDE4;  /* borde de tarjeta (decorativo) */
-  --border-strong: #7C8696;  /* borde de controles, foco y activo (>= 3:1) */
-  --border-subtle: #E6E9EE;  /* separadores internos */
-  --metal: linear-gradient(var(--border), var(--border));   /* el código antiguo pinta bordes con este degradado: ahora es un trazo liso */
+  /* Bordes finos (1 px) azul platinado */
+  --border:        #8AA0BF;  /* borde de tarjeta (decorativo) */
+  --border-strong: #5F7799;  /* borde de controles, foco y activo (>= 3:1) */
+  --border-subtle: #D3DCEA;  /* separadores internos */
+  --metal: linear-gradient(135deg, #C3D1E6 0%, #8AA0BF 38%, #5F7799 62%, #B9C8DE 100%);  /* brillo metálico del borde (1 px) */
 
   /* Texto */
-  --text:   #0F141B;
-  --text-2: #4F5B6D;
+  --text:   #05080D;
+  --text-2: #40506A;
 
-  /* Acento (pestaña activa, botón principal) */
-  --accent:    #0A58CA;
+  /* Acento (pestaña activa, botón principal): azul platinado profundo */
+  --accent:    #2B4A7A;
   --on-accent: #FFFFFF;
 
   /* Semántica FIJA en todo el sitio (siempre con ícono o texto, nunca solo color) */
   --valor:      #0F7A3C;  --valor-bg:   #E6F5EC;  /* ✔ posible valor */
-  --neutral:    #546072;  --neutral-bg: #EDF0F4;  /* — sin ventaja */
+  --neutral:    #4B5A72;  --neutral-bg: #E9EEF5;  /* — sin ventaja */
   --aviso:      #8A4F00;  --aviso-bg:   #FFF3DA;  /* ⚠ precaución / histórico no rentable */
   --contra:     #B3261E;  --contra-bg:  #FCE9E7;  /* ✖ en contra */
   --info:       #0A5AA8;  --info-bg:    #E6F1FB;  /* ⓘ información */
@@ -39,42 +42,45 @@
   /* Barras de comparación: verde = lado positivo (modelo/favorito/acierto), rojo = contraparte */
   --bar-pos: #1F9D55;
   --bar-neg: #D9534F;
-  --cut:     #0F141B;     /* línea vertical de corte (probabilidad implícita del mercado o umbral) */
+  --cut:     #05080D;     /* línea vertical de corte (probabilidad implícita del mercado o umbral) */
 
-  --shadow:     0 1px 2px rgba(16,24,40,.04);
-  --shadow-pop: 0 10px 30px rgba(16,24,40,.18);
+  --shadow:     0 1px 2px rgba(20,32,56,.06);
+  --shadow-pop: 0 10px 30px rgba(20,32,56,.20);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg:        #0B0D11;
-  --surface:   #13171D;
-  --surface-2: #191E26;
-  --surface-3: #212835;
+  /* Fondos: negro */
+  --bg:        #000000;
+  --surface:   #070A0F;
+  --surface-2: #0E131B;
+  --surface-3: #151C27;
 
-  --border:        #2B3342;
-  --border-strong: #7F8CA3;
-  --border-subtle: #232A36;
+  /* Bordes azul platinado (los originales) */
+  --border:        #8AA0BF;
+  --border-strong: #C3D1E6;
+  --border-subtle: #2B3647;
+  --metal: linear-gradient(135deg, #D5E0F0 0%, #8AA0BF 38%, #5F7799 62%, #B9C8DE 100%);
 
-  --text:   #F2F5FA;
-  --text-2: #A9B4C5;
+  --text:   #F3F6FB;
+  --text-2: #A9B5C7;
 
-  --accent:    #7FB2FF;
-  --on-accent: #06101F;
+  --accent:    #C3D1E6;
+  --on-accent: #05080D;
 
-  --valor:      #3DDC84;  --valor-bg:   #0E2A1B;
-  --neutral:    #A3ADBB;  --neutral-bg: #1A2029;
-  --aviso:      #FFB547;  --aviso-bg:   #2D2108;
-  --contra:     #FF7A7A;  --contra-bg:  #341214;
-  --info:       #66B3FF;  --info-bg:    #0D2338;
+  --valor:      #3DDC84;  --valor-bg:   #0B2A1A;
+  --neutral:    #A3ADBB;  --neutral-bg: #161B23;
+  --aviso:      #FFB547;  --aviso-bg:   #2D2006;
+  --contra:     #FF7A7A;  --contra-bg:  #331012;
+  --info:       #66B3FF;  --info-bg:    #0C2238;
 
   --bar-pos: #34C26B;
   --bar-neg: #F0605D;
-  --cut:     #F2F5FA;
+  --cut:     #F3F6FB;
 
-  --shadow:     0 1px 2px rgba(0,0,0,.4);
-  --shadow-pop: 0 10px 30px rgba(0,0,0,.6);
+  --shadow:     0 1px 0 rgba(255,255,255,.04), 0 6px 18px rgba(0,0,0,.55);
+  --shadow-pop: 0 10px 30px rgba(0,0,0,.7);
 }
 
 :root {
