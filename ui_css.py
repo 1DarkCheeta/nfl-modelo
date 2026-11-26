@@ -1,6 +1,6 @@
 """Sistema de diseno unico del sitio: tokens (ui/tokens.css) + componentes + remapeo de las variables antiguas.
 
-Dos temas (claro por defecto y oscuro con boton en la cabecera). Ningun color suelto: todo sale de las variables de tokens.css.
+Dos temas (oscuro por defecto, paleta Los Picketones, y claro con boton en la cabecera). Ningun color suelto: todo sale de las variables de tokens.css.
 reporte.py inserta CSS_TODO al final de <style>, asi que tambien cubre el codigo antiguo (reporte_extra, puntos, por_equipo, ...).
 """
 from pathlib import Path

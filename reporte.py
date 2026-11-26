@@ -600,7 +600,7 @@ def construir(r: dict, ruta: Path | None = None, extras: dict | None = None) -> 
         CSS_X, JS_X = CSS_X + PY.CSS, JS_X + ("" if usa_web else PY.JS)
     if usa_web:
         body, CSS_X, JS_X = body_web, CSS_X + WEB.CSS, JS_X + WEB.JS
-    doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><script>try{{if(localStorage.getItem("nflmodelo.tema")==="dark")document.documentElement.setAttribute("data-theme","dark")}}catch(e){{}}</script><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
+    doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFL semana {wk}</title><script>document.documentElement.setAttribute("data-theme","dark");try{{if(localStorage.getItem("nflmodelo.tema")==="light")document.documentElement.removeAttribute("data-theme")}}catch(e){{}}</script><style>{CSS}{CSS_X}</style></head><body>{body}{JS_X}</body></html>'
     ruta = ruta or REPORTES / f"reporte_{cur}_semana{wk:02d}.html"
     ruta.write_text(doc, encoding="utf-8")
     return ruta

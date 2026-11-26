@@ -1,6 +1,6 @@
 /* ==========================================================================
    tokens.css — ÚNICO archivo de diseño base del reporte NFL.
-   Dos temas: CLARO (por defecto, estilo app iOS limpia) y OSCURO (botón en la cabecera;
+   Dos temas: OSCURO (por defecto, paleta Los Picketones) y CLARO (botón en la cabecera;
    se recuerda en el navegador). Todo lo demás del sitio sale de estas variables.
    Contraste verificado (WCAG AA) en los dos temas: texto >= 4.5:1; bordes de controles,
    íconos y barras >= 3:1 (ver /tmp/ui/pal.py y a11y3.py). Los bordes de tarjeta (1 px) son decorativos.

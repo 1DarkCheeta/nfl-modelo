@@ -4,7 +4,7 @@ NO calcula nada: solo acomoda el HTML que ya generan reporte.py, puntos.py, repo
 Todas las calculadoras (linea editable de totales / equipos / combinadas, props, touchdowns, combinada de jugadores, cuotas) siguen siendo las
 mismas: escuchan eventos a nivel de documento, asi que funcionan igual aunque su bloque este en otra pestana o dentro de un desplegable.
 
-Estructura (4 secciones, navegacion segmentada; tema claro por defecto y oscuro con boton)
+Estructura (4 secciones, navegacion segmentada; tema oscuro (paleta Los Picketones) por defecto y claro con boton)
   Picks / Valor         que apostar hoy, posibles valores, filtros, partidos de la semana (la siguiente aparte), resumen, graficas, tarjeta, metodologia
   Partidos              selector de partido; cada partido con 4 sub-pestanas: Apuestas / Puntos y combinadas / Props y TD / Matchup
   Jugadores y Props     LINEA AC, touchdowns, props destacados, cruce ofensiva vs defensa, ofensiva, defensiva
@@ -715,10 +715,10 @@ function filtrar(){var eq=($('#f-eq')||{}).value||'',mk=($('#f-mk')||{}).value||
  var act=!!(eq||mk||val||als.length);var f=$('#f-n');if(f)f.textContent=act?(n+' de '+tot+' partidos'):(tot+' partidos');var fv=$('#f-vacio');if(fv)fv.hidden=n>0;
  var cl=$('#f-clear');if(cl)cl.hidden=!act;}
 function limpiar(){var e=$('#f-eq'),m=$('#f-mk'),v=$('#f-val');if(e)e.value='';if(m)m.value='';if(v)v.setAttribute('aria-pressed','false');$$('button[data-al]').forEach(function(b){b.setAttribute('aria-pressed','false');});filtrar();}
-/* ---------- tema claro / oscuro (claro por defecto; se recuerda en este navegador) ---------- */
+/* ---------- tema claro / oscuro (oscuro por defecto; se recuerda en este navegador) ---------- */
 function ponerTema(t,guardar){var r=document.documentElement;if(t==='dark')r.setAttribute('data-theme','dark');else r.removeAttribute('data-theme');
  var b=$('#tema');if(b)b.setAttribute('aria-pressed',t==='dark'?'true':'false');if(guardar){try{localStorage.setItem('nflmodelo.tema',t);}catch(e){}}}
-(function(){var t='light';try{t=localStorage.getItem('nflmodelo.tema')||'light';}catch(e){}ponerTema(t==='dark'?'dark':'light',false);})();
+(function(){var t='dark';try{t=localStorage.getItem('nflmodelo.tema')||'dark';}catch(e){}ponerTema(t==='light'?'light':'dark',false);})();
 /* ---------- texto explicativo largo -> plegable; tablas con barra interna; tablas vacias ---------- */
 function plegar(root){var roots=root.classList&&root.classList.contains('tab')?[root]:[];roots.forEach(function(r){var run=[];var kids=Array.prototype.slice.call(r.children);
  function cerrar(){if(!run.length)return;var d=document.createElement('details');d.className='exp';var s=document.createElement('summary');s.textContent='Cómo se lee';d.appendChild(s);
